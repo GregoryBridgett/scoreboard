@@ -10,8 +10,19 @@ const scoreboardId = workerData.scoreboardId;
     const response = await fetch(`http://localhost:3000/getGameId/${scoreboardId}`);
     const { gameId } = await response.json();
     
-    const initialData = await scrapeGameData(gameId);    
-    parentPort.postMessage({ type: 'initial', data: initialData, scoreboardId });
+    const scrapedData = await scrapeGameData(gameId); 
+    const initialData = {
+      gameId: gameId,
+      scoreboardId: scoreboardId,
+      gameStatus: scrapedData.gameStatus,
+      homeTeam: scrapedData.homeTeam,
+      awayTeam: scrapedData.awayTeam,
+      currentPeriod: scrapedData.currentPeriod,
+      timeRemaining: scrapedData.timeRemaining,
+      homeTeamShots: scrapedData.homeTeamShots,
+      awayTeamShots: scrapedData.awayTeamShots,
+    };   
+    parentPort.postMessage({ type: 'initial', data: initialData });
   } catch (error) {
     console.error('Error during initial scraping:', error);
   }
@@ -25,12 +36,19 @@ setInterval(async () => {
     
     if (gameId) {
       const updates = await scrapeGameData(gameId);
-      const updateData = {
-        scores: updates.scores,
-        goals: updates.goals,
-        penalties: updates.penalties,
+      const updateData = {        
+        gameStatus: updates.gameStatus,
+        homeScore: updates.homeScore,
+        awayScore: updates.awayScore,
+        currentPeriod: updates.currentPeriod,
+        timeRemaining: updates.timeRemaining,
+        homeTeam: updates.homeTeam,
+        awayTeam: updates.awayTeam,
+        homeTeamShots: updates.homeTeamShots,
+        awayTeamShots: updates.awayTeamShots,
+        events: updates.events // Assuming events include goals and penalties
       };
-      parentPort.postMessage({ type: 'update', data: updateData, scoreboardId });
+      parentPort.postMessage({ type: 'update', data: updateData, scoreboardId: scoreboardId });
     }
   } catch (error) {
     console.error('Error during update scraping:', error);

@@ -1,3 +1,5 @@
+import {DataModel} from '../common/dataModel.js';
+
 const scoreboard = document.getElementById('scoreboard');
 
 // Assume scoreboardId is provided externally (e.g., through an environment variable)
@@ -10,35 +12,21 @@ if (!scoreboardId || typeof scoreboardId !== 'string') {
 
 // Function to update the scoreboard with data
 function updateScoreboard(data) {
-  // Update team names and scores
-  document.getElementById('homeTeamName').textContent = data.homeTeamName;
-  document.getElementById('awayTeamName').textContent = data.awayTeamName;
-  document.getElementById('homeTeamScore').textContent = data.homeTeamScore;
-  document.getElementById('awayTeamScore').textContent = data.awayTeamScore;
+  const dataModel = new DataModel(data);
 
-  // Update game time
-  document.getElementById('gameTime').textContent = data.gameTime;
+  document.getElementById('homeTeamName').textContent = dataModel.homeTeamName;
+  document.getElementById('awayTeamName').textContent = dataModel.awayTeamName;
+  document.getElementById('homeTeamScore').textContent = dataModel.homeTeamScore;
+  document.getElementById('awayTeamScore').textContent = dataModel.awayTeamScore;
+  document.getElementById('homeTeamShots').textContent = dataModel.homeTeamShots;
+  document.getElementById('awayTeamShots').textContent = dataModel.awayTeamShots;
 
-  // Update goals and penalties lists
-  const homeGoalsList = document.getElementById('homeGoals');
-  const awayGoalsList = document.getElementById('awayGoals');
-  const homePenaltiesList = document.getElementById('homePenalties');
-  const awayPenaltiesList = document.getElementById('awayPenalties');
+  document.getElementById('gameTime').textContent = dataModel.gameTime;
 
-  // Helper function to update a list
-  const updateList = (list, items) => {
-    list.innerHTML = ''; // Clear the list
-    items.forEach(item => {
-      const li = document.createElement('li');
-      li.textContent = item;
-      list.appendChild(li);
-    });
-  };
-
-  updateList(homeGoalsList, data.homeTeamGoals);
-  updateList(awayGoalsList, data.awayTeamGoals);
-  updateList(homePenaltiesList, data.homeTeamPenalties);
-  updateList(awayPenaltiesList, data.awayTeamPenalties);
+  updateList(document.getElementById('homeGoals'), dataModel.homeTeamGoals);
+  updateList(document.getElementById('awayGoals'), dataModel.awayTeamGoals);
+  updateList(document.getElementById('homePenalties'), dataModel.homeTeamPenalties);
+  updateList(document.getElementById('awayPenalties'), dataModel.awayTeamPenalties);
 }
 // Fetch initial game info
 fetch(`/gameInfo/${scoreboardId}`)
@@ -64,6 +52,17 @@ eventSource.onmessage = (event) => {
 eventSource.onerror = function(error) {
   console.error('SSE connection error:', error);
 };
+
+
+const updateList = (list, items) => {
+  list.innerHTML = ''; // Clear the list
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    list.appendChild(li);
+  });
+};
+
 
 /**
  * Reads the 'theme' parameter from the URL and returns it.

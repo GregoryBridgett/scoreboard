@@ -18,8 +18,6 @@ let serverTimeout;
 const scoreboardData = {};
 // Map scoreboard IDs to game IDs
 const scoreboardGameMap = {};
-let previousGameData = {}; // Store the previous game data for comparison
-
 const gameEventEmitter = new EventEmitter();
 // Use body-parser to parse JSON request bodies
 app.use(bodyParser.json());
@@ -45,6 +43,8 @@ function getInitialGameData(scoreboardId) {
         scoreboardId: scoreboardId,
         scores: [0, 0],
         goals: [],
+        homeTeamShots: 0,
+        awayTeamShots: 0,
         penalties: [],
         gameInfo: {
             team1: { name: 'Team A', color: 'red' },
@@ -55,30 +55,33 @@ function getInitialGameData(scoreboardId) {
 
 // Endpoint for SSE connection
 app.get('/scoreboard-updates', (req, response) => {
+    const scoreboardId = req.query.scoreboardId;
+    if (!scoreboardId) {
+        return response.status(400).json({ error: 'scoreboardId is required' });
+    }
+
     response.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
     });
 
-    const scoreboardId = req.query.scoreboardId; // Get scoreboardId from query parameters
-
     // Add client to the set
     clients.add(response);
 
     // Send initial data to the client
-    const initialData = getInitialGameData(scoreboardId);
-    response.write(`data: ${JSON.stringify(initialData)}\n\n`);
+    const gameId = scoreboardGameMap[scoreboardId];
+    if (gameId && scoreboardData[gameId]) {
+        const initialData = { type: 'initialData', data: scoreboardData[gameId] }; // Send all game data initially
+        response.write(`data: ${JSON.stringify(initialData)}\n\n`); 
+    }
 
     // Remove client from the set when connection closes
     response.on('close', () => {
         clients.delete(response);        
         if (clients.size === 0) {
-            // Start the shutdown timer if no clients are connected
-            // serverTimeout = setTimeout(() => {
-            //     console.log('No clients connected. Shutting down server...');
-            //     process.exit(0); // Gracefully shut down the server
-            // }, 120000); // 2 minutes - Removed for Cloud Run
+            // Optional: Start a timer to shut down the server if no clients are connected for a while
+            // ... (implementation for server shutdown)
         }
     });
     // If a client connects after the timeout has started, clear the timeout
@@ -89,9 +92,21 @@ app.get('/scoreboard-updates', (req, response) => {
 });
 
 // Event listener for game updates
-gameEventEmitter.on('gameUpdate', (data) => {
-    for (const client of clients) {
-        client.write(`data: ${JSON.stringify(data)}\n\n`);
+gameEventEmitter.on('gameUpdate', (update) => {
+    // Iterate over a copy of the clients set to avoid issues with concurrent modification
+    for (const client of [...clients]) { 
+        // Check if the client is still connected before sending data
+        if (!client.destroyed) {  
+            try {
+                client.write(`data: ${JSON.stringify(update)}\n\n`);
+            } catch (err) {
+                // Handle errors, such as client disconnections during the loop
+                console.error('Error sending data to client:', err);
+                clients.delete(client); // Remove the disconnected client
+            }
+        } else {
+            clients.delete(client); // Remove the disconnected client
+        }
     }
 });
 
@@ -113,7 +128,7 @@ app.post('/startGame/:scoreboardId', (req, res) => {
     // Generate a unique gameId (you might want to use a library like uuid for this)
     const gameId = Math.random().toString(36).substring(2, 15); 
     scoreboardGameMap[scoreboardId] = gameId;
-    scoreboardData[gameId] = { scores: [], goals: [], penalties: [] };  
+    scoreboardData[gameId] = { scores: [], goals: [], penalties: [], homeTeamShots: 0, awayTeamShots: 0 };  
 
     const worker = new Worker(path.join(__dirname, 'gameWorker.js'), {
         workerData: { gameId, scoreboardId } 
@@ -121,7 +136,17 @@ app.post('/startGame/:scoreboardId', (req, res) => {
 
     worker.on('message', (data) => {
         // Emit the game update event
-        gameEventEmitter.emit('gameUpdate', data);
+        if (data.type === 'scoreUpdate') {
+            // Update the scoreboard data with the new scores
+            scoreboardData[gameId].scores = data.data.scores;
+            // ... update other relevant data
+        } else if (data.type === 'goalAdded') {
+            // Add the new goal to the goals array
+            scoreboardData[gameId].goals.push(data.data);
+            // ... update other relevant data
+        }
+        // Send the update to clients
+        gameEventEmitter.emit('gameUpdate', data); 
     });
 
     res.json({ gameId, scoreboardId });
@@ -140,24 +165,14 @@ app.get('/gameInfo/:scoreboardId', (req, res) => {
     if (!gameId) {
         return res.status(404).json({ message: 'Scoreboard ID not found' });
     }
-    // Replace with your logic to get game info (team names, colors, etc.)
-    // For this example, we'll return some dummy data
-    const gameInfo = {
-        gameId: gameId,
-        team1: {
-            name: 'Team A',
-            color: 'red'
-        },
-        team2: {
-            name: 'Team B',
-            color: 'blue'
-        }
-    };
 
-    // Store the initial game information (if needed)
-    scoreboardData[gameId] = scoreboardData[gameId] || { scores: [], goals: [], penalties: [] }; 
-
-    res.json(gameInfo);
+    if (scoreboardData[gameId]) {
+        // Return the full game data
+        res.json(scoreboardData[gameId]);
+    } else {
+        // Game data not found for this gameId
+        res.status(404).json({ message: 'Game data not found for this scoreboard ID' });
+    }
 });
 
 // Endpoint to update scores for a specific game
@@ -171,13 +186,19 @@ app.post('/scores/:scoreboardId', (req, res) => {
 
     const updatedScores = req.body; // Expecting an array of scores
 
-    // Initialize if gameId doesn't exist
-    scoreboardData[gameId] = scoreboardData[gameId] || []; 
+    if (scoreboardData[gameId]) {
+        // Update existing game data
+        scoreboardData[gameId] = { ...scoreboardData[gameId], ...updatedScores };
 
-    // Update or add scores for the game
-    scoreboardData[gameId] = updatedScores; 
+        // Send the score update to clients
+        const update = { type: 'scoreUpdate', data: updatedScores };
+        gameEventEmitter.emit('gameUpdate', update);
 
-    res.status(200).json({ message: 'Score updated successfully' });
+        res.status(200).json({ message: 'Score updated successfully' });
+    } else {
+        // Game data not found for this gameId
+        res.status(404).json({ message: 'Game data not found for this scoreboard ID' });
+    }
 });
 
 // Endpoint to get team colors

@@ -42,6 +42,7 @@ fetch(`/gameInfo/${scoreboardId}`)
   .catch(error => {
     console.error('Error fetching game info:', error);
   });
+  
 // EventSource for real-time updates
 const eventSource = new EventSource(`/scoreboard-updates?scoreboardId=${scoreboardId}`);
 eventSource.onmessage = (event) => {

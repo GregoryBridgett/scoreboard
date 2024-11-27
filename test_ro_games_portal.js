@@ -20,10 +20,10 @@ function handleError(message, error) {
 function getDivisionId(leagueText, divisionText, document) {
   const leagueListItem = Array.from(document.querySelectorAll('li')).find(li =>
     li.textContent.includes(leagueText)
-  );  
-  if (!leagueListItem) {    
+  );
+  if (!leagueListItem) {
     handleError(`List item containing "${leagueText}" not found`, new Error("League list item not found"));
-    return null; 
+    return null;
   }
 
   const divisionLink = Array.from(leagueListItem.querySelectorAll('a')).find(a =>
@@ -31,15 +31,15 @@ function getDivisionId(leagueText, divisionText, document) {
   );
   if (!divisionLink) {
     handleError(`Link for division "${divisionText}" not found`, new Error("Division link not found"));
-    return null; 
+    return null;
   }
 
   const href = divisionLink.href;
-  const hrefNumber = href.match(/#div_(\d+)/)?.[1]; 
-  if (!hrefNumber) {    
+  const hrefNumber = href.match(/#div_(\d+)/)?.[1];
+  if (!hrefNumber) {
     handleError(`Could not extract href number from "${href}"`, new Error("Invalid href format"));
-    return null; 
-  }  
+    return null;
+  }
   return hrefNumber;
 }
 
@@ -58,7 +58,7 @@ function getCurrentSeasonId(document) {
   if (seasonDropdown) {
   } else {
     console.error("Error: Element with name 'ddlSeason' not found on the page.");
-  }  
+  }
   const selectedSeasonOption = seasonDropdown.querySelector('option[selected]');
   return selectedSeasonOption ? selectedSeasonOption.value : null;
 }
@@ -107,11 +107,11 @@ async function fetchGameTableDataWithJson(url) {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json(); 
+    return await response.json();
   } catch (error) {
     handleError("Error fetching game table data:", error);
-    return null; 
-  }  
+    return null;
+  }
 }
 
 /**
@@ -155,178 +155,6 @@ function displayIncompleteGames(gameData) {
 }
 
 /**
- * Scrapes game statistics from a Ringette Ontario gamesheet URL.
- *
- * @param {string} url - The URL of the gamesheet to scrape.
- * @returns {Promise<object|null>} A Promise that resolves with an object containing the game statistics, or null if an error occurs.
- *
- * The returned object has the following structure:
- * {
- *   score: { home: number, away: number },
- *   scoringSummary: [ ...array of scoring summary lines... ],
- *   penaltySummary: [ ...array of penalty summary lines... ]
- * }
- */
-async function scrapeGameStats(url) {  
-  console.log(`(scrapeGameStats) Starting to scrape: ${url}`);
-  try {
-    const document = await getDocument(url);
-    if (!document) {
-      return null;
-    }
-
-    let homeScore, awayScore;
-
-    // Extract the score
-    const homeScoreElement = document.getElementById('homeGoalClock');
-    const awayScoreElement = document.getElementById('awayGoalClock');
-
-    if (homeScoreElement && awayScoreElement) {
-      const homeScore = parseInt(homeScoreElement.textContent.trim(), 10);
-      const awayScore = parseInt(awayScoreElement.textContent.trim(), 10);
-
-      console.log('(scrapeGameStats) Home Score:', homeScore);
-      console.log('(scrapeGameStats) Away Score:', awayScore);
-
-      const score = { home: homeScore, away: awayScore };
-    }  else {
-      console.warn('(scrapeGameStats) Score box element not found. Game may not have started or data is unavailable.');
-      return null;
-    }
-
-    // Extract scoring summary
-    let scoringSummary = [];
-    const scoringSummaryHeading = Array.from(document.querySelectorAll('h3')).find(h3 =>
-      h3.textContent.trim() === 'Scoring Summary'
-    );
-    
-    if (scoringSummaryHeading) {    
-      const scoringTable = scoringSummaryHeading.nextElementSibling;
-      if (scoringTable && scoringTable.tagName === 'TABLE') {
-        const rows = scoringTable.querySelectorAll('tbody tr');
-        for (const row of rows) {
-          try {
-            console.log('(scrapeGameStats) Processing scoring summary row:', row.outerHTML);
-            // console.log('  - Row Text Content:', row.textContent);
-            // console.log('  - Row Outer HTML:', row.outerHTML);
-
-            // Extract team (first anchor tag with href starting with '/team/')
-            const teamLink = row.querySelector('a[href^="/team/"]');
-            let team = null;
-            if (teamLink) {
-              team = teamLink.textContent.trim();
-              console.log('  - Team Link:', teamLink.outerHTML);
-              console.log('  - Team:', team);
-            } else {
-              console.warn('  - Team Link not found in row.');
-            }
-
-            // Extract time
-            const timeMatch = row.textContent.match(/\bat\s*(\d{1,2}:\d{2})\b/);
-            const time = timeMatch ? timeMatch[1] : null;
-            console.log('  - Time:', time);            
-
-            // Extract scorer (text between time and "from")
-            let scorer = null;            
-            if (time) {
-              const timeIndex = row.textContent.indexOf(time);
-              
-              const scorerStartIndex = timeIndex + time.length;
-              const scorerEndIndex = row.textContent.indexOf('from', scorerStartIndex);
-
-              if (scorerStartIndex !== -1 && scorerEndIndex !== -1) {
-                scorer = row.textContent
-                  .substring(scorerStartIndex, scorerEndIndex)
-                  .replace('-', '') // Remove the hyphen
-                  .trim();
-              } else {
-                console.warn('(scrapeGameStats) Could not extract scorer using "from" keyword. Row text:', row.textContent);
-
-      
-                // Fallback: Try extracting scorer using "Assisted by" keyword
-                const assistedByIndex = row.textContent.indexOf('Assisted by');
-                if (assistedByIndex !== -1) {
-                  scorer = row.textContent.substring(scorerStartIndex, assistedByIndex).replace('-', '').trim();
-                }
-              }
-            }                       
-
-            // Extract assists
-            let assists = [];
-            const assistIndex = row.textContent.indexOf('from'); 
-            if (assistIndex !== -1) {
-              const assistText = row.textContent.substring(assistIndex + 4).trim(); // Get text after "from"
-              
-              // Split assists by "and" and trim whitespace
-              assists = assistText
-                .split('and')
-                .map(assist => assist.trim())
-                .map(assist => {
-                  // Remove leading numbers and whitespace
-                  const assistMatch = assist.match(/(?:\d+\s+)?(.*)/);
-                  return assistMatch ? assistMatch[1].trim() : null;
-                })
-                .filter(assist => assist !== null); // Remove any null assists
-              
-            } else {              
-              console.warn('(scrapeGameStats) No assists found for this goal.');              
-            }            
-            console.log('  - Assists:', assists);
-
-            const goalData = {
-              team,
-              time,
-              scorer,
-              assists: assists
-            };
-
-            scoringSummary.push(goalData);
-          } catch (error) {
-            console.warn('(scrapeGameStats) Error extracting scoring summary data from row:', row.outerHTML, error);
-          }                    
-        }
-        console.log('(scrapeGameStats) Scoring Summary:', scoringSummary);      
-      } else {
-        console.warn('(scrapeGameStats) Element following "Scoring Summary" heading is not a table.');
-      }      
-    } else {      
-      console.warn('(scrapeGameStats) "Scoring Summary" heading not found.');    
-    }
-
-
-    // Extract penalty summary
-    console.log('(scrapeGameStats) Finding penalty summary rows...');
-    const penaltySummaryRows = document.querySelectorAll('#penalties-table tbody tr');
-    console.log('(scrapeGameStats) Penalty Summary Table HTML:', document.querySelector('#penalties-table').outerHTML);
-    const penaltySummary = Array.from(penaltySummaryRows).map(row => row.textContent.trim());
-
-    return {
-      score: { home: homeScore, away: awayScore },
-      scoringSummary,
-      penaltySummary,
-    };
-  } catch (error) {
-    handleError(`Error scraping game stats from ${url}`, error);
-    return null;
-  }
-}
-
-
-/**
- * Extracts the team number from a Ringette Ontario team URL.
- *
- * @param {string} teamUrl - The URL of the team page.
- * @returns {string|null} The team number if found, otherwise null.
- *
- * This function extracts the last number in the URL as the team number.
- */
-function extractTeamNumberFromUrl(teamUrl) {
-  const match = teamUrl.match(/\/(\d+)$/);
-  return match ? match[1] : null;
-}
-
-
-/**
  * Extracts scoring play data from the provided HTML document.
  *
  * @param {Document} document - The HTML document to extract data from.
@@ -345,33 +173,51 @@ function extractScoringPlaysData(document) {
     if (scoringTable && scoringTable.tagName === 'TABLE') {
       const rows = scoringTable.querySelectorAll('tbody tr');
 
+      let period = null
       for (const row of rows) {
-        // Extract team name from the first link
+        // Check if the row represents a period header
+        const periodHeaderMatch = row.textContent.trim().match(/^Period (\d+)$/);
+        if (periodHeaderMatch) {
+          period = periodHeaderMatch[1];
+          continue; // Skip processing this row if it's a period header
+        }
+
+        // Extract team information
         const teamLink = row.querySelector('a[href^="/team/"]');
         const teamName = teamLink ? teamLink.textContent.trim() : null;
+        const teamId = teamName ? teamLink.href.match(/team\/.*\/(\d+)$/)[1] : null;
 
         // Extract goal time
         const goalTimeMatch = row.textContent.match(/\bat\s*(\d{1,2}:\d{2})\b/);
-        const goalTime = goalTimeMatch ? goalTimeMatch[1] : null;
+        const time = goalTimeMatch ? goalTimeMatch[1] : null;
 
         // Extract scorer name from the second link
-        const links = row.querySelectorAll('a[href^="/player/"]');
+        const links = row.querySelectorAll('a[href*="/player/"]');
         const scorerName = links.length > 0 ? links[0].textContent.trim() : null; // Assuming scorer is the first link
+        const scorerIdMatch = scorerName ? links[0].href.match(/player\/(\d+)$/) : null; //Updated to user links[0]
+        const scorerId = scorerIdMatch ? scorerIdMatch[1] : null; // Extract scorer ID
 
-        // Extract assister names
-        const assistTextMatch = row.textContent.match(/from(.*)/);
-        let assisterNames = [];
-        if (assistTextMatch) {
-          const assistText = assistTextMatch[1].trim();
-          assisterNames = assistText.split('and').map(name => name.trim());
-        }
+        const firstAssisterName = links.length > 1 ? links[1].textContent.trim() : null;
+        const firstAssisterIdMatch = firstAssisterName ? links[1].href.match(/player\/(\d+)$/) : null;
+        const firstAssisterId = firstAssisterIdMatch ? firstAssisterIdMatch[1] : null;
 
-        // Create scoring play object and add it to the array
+        const secondAssisterName = links.length > 2 ? links[2].textContent.trim() : null;
+        const secondAssisterIdMatch = secondAssisterName ? links[2].href.match(/player\/(\d+)$/) : null;
+        const secondAssisterId = secondAssisterIdMatch ? secondAssisterIdMatch[1] : null;
+
+        // Create scoring play object
         scoringPlays.push({
           teamName,
-          goalTime,
+          teamId,
+          time,
+          period,
           scorerName,
-          assisterNames,
+          scorerId,
+          firstAssisterName,
+          firstAssisterId,
+          secondAssisterName,
+          secondAssisterId,
+
         });
       }
     }
@@ -380,7 +226,70 @@ function extractScoringPlaysData(document) {
   return scoringPlays;
 }
 
+/**
+ * Extracts penalty data from the provided HTML document.
+ *
+ * @param {Document} document - The HTML document to extract data from.
+ * @returns {Array<object>} An array of penalty objects.
+ */
+function extractPenaltyData(document) {
+  const penaltyData = [];
 
+  // Find the table following the "Scoring Summary" h3 tag
+  const penaltySummaryHeading = Array.from(document.querySelectorAll('h3')).find(h3 =>
+    h3.textContent.trim() === 'Penalty Summary'
+  );
+
+  if (penaltySummaryHeading) {
+    const penaltyTable = penaltySummaryHeading.nextElementSibling;
+    if (penaltyTable && penaltyTable.tagName === 'TABLE') {
+      const rows = penaltyTable.querySelectorAll('tbody tr');
+
+      let period = null
+      for (const row of rows) {
+        // Check if the row represents a period header
+        const periodHeaderMatch = row.textContent.trim().match(/^Period (\d+)$/);
+        if (periodHeaderMatch) {
+          period = periodHeaderMatch[1];
+          continue; // Skip processing this row if it's a period header
+        }
+
+        // Extract team information
+        const teamLink = row.querySelector('a[href^="/team/"]');
+        const teamName = teamLink ? teamLink.textContent.trim() : null;
+        const teamId = teamName ? teamLink.href.match(/team\/.*\/(\d+)$/)[1] : null;
+
+        // Extract penalty time
+        const penaltyTimeMatch = row.textContent.match(/\bat\s*(\d{1,2}:\d{2})\b/);
+        const time = penaltyTimeMatch ? penaltyTimeMatch[1] : null;
+
+        // Extract player name from the second link
+        const links = row.querySelectorAll('a[href*="/player/"]');
+        const playerName = links.length > 0 ? links[0].textContent.trim() : null; // Assuming player is the first link
+        const playerIdMatch = playerName ? links[0].href.match(/player\/(\d+)$/) : null; //Updated to user links[0]
+        const playerId = playerIdMatch ? playerIdMatch[1] : null; // Extract player ID
+
+        // Extract penalty name
+        console.log(links[0].textContent)
+        const penaltyNameMatch = playerId ? row.textContent.match(/.*for (.*)/) : null;
+        const penaltyName = penaltyNameMatch ? penaltyNameMatch[1].trim() : null;
+
+        // Create scoring play object
+        penaltyData.push({
+          teamName,
+          teamId,
+          time,
+          period,
+          playerName,
+          playerId,
+          penaltyName,
+        });
+      }
+    }
+  }
+
+  return penaltyData;
+}
 
 
 
@@ -423,7 +332,7 @@ async function main() {
     let document = await getDocument(url);
     if (!document) return; // Exit if document retrieval failed
 
-    const searchText = 'NCRRL'; 
+    const searchText = 'NCRRL';
     const divisionId = getDivisionId(searchText, textId, document);
     if (!divisionId) return; // Exit if division ID retrieval failed
     console.log("Division ID:", divisionId);
@@ -436,18 +345,23 @@ async function main() {
 
     const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
     const gameData = await fetchGameTableDataWithJson(apiUrl);
-    if (gameData) {      
+    if (gameData) {
       displayIncompleteGames(gameData);
 
-      // Call scrapeGameStats and log the results
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';
-      const gameStats = await scrapeGameStats(gameUrl);
-      console.log('Game Stats:', gameStats);
+      document = await getDocument(gameUrl);
+      if (!document) return;
 
+      // Ensure document is fully loaded before extracting data
+      const penaltyData = extractPenaltyData(document);
+      const scoringPlays = extractScoringPlaysData(document);
+
+      console.log('Scoring Plays:', scoringPlays);
+      console.log('Penalty Data', penaltyData);
 
     } else {
-      console.log("No game data received from API."); 
-    }    
+      console.log("No game data received from API.");
+    }
   } catch (error) {
     handleError("An error occurred in the main function:", error);
   }

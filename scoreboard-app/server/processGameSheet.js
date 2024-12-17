@@ -131,3 +131,22 @@ export function extractPenaltyData(document) {
   }
   return penaltyData;
 }
+
+/**
+ * Extracts the current game data from the provided HTML document.
+ *
+ * @param {Document} document - The HTML document to extract data from.
+ * @returns {object} An object containing the current game data.
+ */
+export function getScoreData(document) {
+  const homeScoreElement = document.getElementById('homeGoalClock');
+  const awayScoreElement = document.getElementById('awayGoalClock');
+
+  const homeScore = homeScoreElement ? parseInt(homeScoreElement.textContent.trim(), 10) : 0;
+  const awayScore = awayScoreElement ? parseInt(awayScoreElement.textContent.trim(), 10) : 0;
+
+  return {
+    homeScore,
+    awayScore,
+  };
+}

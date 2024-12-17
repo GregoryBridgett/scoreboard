@@ -135,18 +135,22 @@ app.post('/startGame/:scoreboardId', (req, res) => {
     });
 
     worker.on('message', (data) => {
-        // Emit the game update event
-        if (data.type === 'scoreUpdate') {
-            // Update the scoreboard data with the new scores
-            scoreboardData[gameId].scores = data.data.scores;
-            // ... update other relevant data
-        } else if (data.type === 'goalAdded') {
-            // Add the new goal to the goals array
-            scoreboardData[gameId].goals.push(data.data);
-            // ... update other relevant data
+        if (data.type === 'gameDataUpdate') {
+            const gameId = scoreboardGameMap[data.scoreboardId]; // Get the game ID
+            if (gameId) {
+                // Update the scoreboard data in the main thread
+                scoreboardData[gameId] = data.data;
+
+                // Emit the game update event with the scoreboardId
+                gameEventEmitter.emit('gameUpdate', {
+                    type: 'gameDataUpdate',
+                    scoreboardId: data.scoreboardId, 
+                    data: data.data
+                });
+            } else {
+                console.error('Game ID not found for scoreboard ID:', data.scoreboardId);
+            }
         }
-        // Send the update to clients
-        gameEventEmitter.emit('gameUpdate', data); 
     });
 
     res.json({ gameId, scoreboardId });

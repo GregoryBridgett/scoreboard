@@ -3,36 +3,64 @@ const { scrapeGameData, getGameIdByScoreboardId } = require('./server'); // Assu
 const fetch = require('node-fetch');
 
 const scoreboardId = workerData.scoreboardId;
+const thirdPartyUrl = workerData.thirdPartyUrl;
 
 // Initial scraping
-(async () => {
-  try {
-    const response = await fetch(`http://localhost:3000/getGameId/${scoreboardId}`);
-    const { gameId } = await response.json();
-    
-    const initialData = await scrapeGameData(gameId);    
-    parentPort.postMessage({ type: 'initial', data: initialData, scoreboardId });
-  } catch (error) {
-    console.error('Error during initial scraping:', error);
-  }
-})();
-
-// Periodic updates
-setInterval(async () => {
-  try {
-    const response = await fetch(`http://localhost:3000/getGameId/${scoreboardId}`);
-    const { gameId } = await response.json();
-    
-    if (gameId) {
-      const updates = await scrapeGameData(gameId);
-      const updateData = {
-        scores: updates.scores,
-        goals: updates.goals,
-        penalties: updates.penalties,
-      };
-      parentPort.postMessage({ type: 'update', data: updateData, scoreboardId });
+try {
+  (async () => {
+    try {
+      const response = await fetch(`${thirdPartyUrl}`, { method: 'POST', body: JSON.stringify({ scoreboardId }), headers: { 'Content-Type': 'application/json' } });
+      const data = await response.json();
+      const scrapedData = await scrapeGameData(data);
+      if (response.ok) {
+        const initialData = {
+          scoreboardId: scoreboardId,
+          gameId: scrapedData.gameId,
+          gameStatus: scrapedData.gameStatus,
+          homeTeam: scrapedData.homeTeam,
+          awayTeam: scrapedData.awayTeam,
+          currentPeriod: scrapedData.currentPeriod,
+          timeRemaining: scrapedData.timeRemaining,
+          homeTeamShots: scrapedData.homeTeamShots,
+          awayTeamShots: scrapedData.awayTeamShots,
+        };
+        parentPort.postMessage({ type: 'initial', data: initialData });
+      }
+    } catch (error) {
+      console.error('Error during initial scraping:', error);
     }
-  } catch (error) {
-    console.error('Error during update scraping:', error);
-  }
-}, 5000); // Update every 5 seconds
+  })();
+
+  // Periodic updates
+  setInterval(async () => {
+    try {
+      const response = await fetch(`${thirdPartyUrl}`, { method: 'POST', body: JSON.stringify({ scoreboardId }), headers: { 'Content-Type': 'application/json' } });
+      const data = await response.json();
+      const updates = await scrapeGameData(data);
+      const updateData = {
+        gameStatus: updates.gameStatus,
+        homeScore: updates.homeScore,
+        awayScore: updates.awayScore,
+        currentPeriod: updates.currentPeriod,
+        timeRemaining: updates.timeRemaining,
+        homeTeam: updates.homeTeam,
+        awayTeam: updates.awayTeam,
+        homeTeamShots: updates.homeTeamShots,
+        awayTeamShots: updates.awayTeamShots,
+        events: updates.events // Assuming events include goals and penalties
+      }
+
+      parentPort.postMessage({ 
+        type: 'gameDataUpdate', 
+        scoreboardId: scoreboardId, 
+        data: updateData 
+      });
+    }
+    catch (error) {
+      console.error('Error during update scraping:', error);
+    }
+  }, 5000); // Update every 5 seconds
+}
+catch (error) {
+  console.error('Worker thread error:', error);
+}

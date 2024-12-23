@@ -1,34 +1,39 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const fetch = require('node-fetch');
 
-// URL of the third-party website to scrape
-const url = 'https://example.com';
-
-async function scrapeData() {
+async function scrapeGameData(gameId) {
   try {
-    // Fetch the HTML of the page
-    const { data } = await axios.get(url);
-    
-    // Load the HTML into cheerio
-    const $ = cheerio.load(data);
-    
-    // Extract the data you need
-    const scrapedData = [];
-    $('selector-for-data').each((index, element) => {
-      const item = $(element).text().trim();
-      scrapedData.push(item);
-    });
+    const response = await fetch(`/gameData?gameId=${gameId}`);
+    const data = await response.json();
 
-    // Log the scraped data
-    console.log(scrapedData);
-
-    // Return the scraped data
-    return scrapedData;
+    // Map the API response to the common data model
+    return {
+      gameId: gameId, 
+      gameStatus: data.status, // Assuming API provides a status
+      gameTime: data.gameTime, 
+      teams: {
+        home: {
+          name: data.homeTeam.name,
+          score: data.homeTeam.score,
+          shots: data.homeTeamShots || 0, // Initialize to 0 if not available
+          players: [], // Assuming player data needs to be fetched separately or is not available in this API call
+        },
+        away: {
+          name: data.awayTeam.name,
+          score: data.awayTeam.score,
+          shots: data.awayTeamShots || 0, // Initialize to 0 if not available
+          players: [], // Assuming player data needs to be fetched separately or is not available in this API call
+        },
+      },
+      events: {
+        goals: data.goals.map(goal => ({ ...goal, type: 'goal' })), // Add type to differentiate events
+        penalties: data.penalties.map(penalty => ({ ...penalty, type: 'penalty' })), // Add type to differentiate events
+      },
+      // ... other fields from the data model if available in the API response
+    };
   } catch (error) {
-    console.error('Error scraping data:', error);
-    return null;
+    console.error('Error fetching game data:', error);
+    throw error; // Re-throw the error to be handled by the caller
   }
 }
 
-// Export the scrapeData function
-module.exports = scrapeData;
+module.exports = { scrapeGameData };

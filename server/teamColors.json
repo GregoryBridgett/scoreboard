@@ -1,0 +1,26 @@
+{
+  "teams": [
+    {
+      "name": "Manchester United",
+      "club": "Man Utd"
+    },
+    {
+      "name": "Liverpool",
+      "club": "Liverpool"
+    }
+    ],
+  "clubs": {
+    "Man Utd": {
+      "home_foreground": "#ffffff",
+      "home_background": "#da291c",
+      "away_foreground": "#000000",
+      "away_background": "#f1e9df"
+    },
+    "Liverpool": {
+      "home_foreground": "#ffffff",
+      "home_background": "#d0021b",
+      "away_foreground": "#ffffff",
+      "away_background": "#00a388"
+    }
+  }
+}

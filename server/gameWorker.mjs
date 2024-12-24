@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads';
 import { fetchDocument } from './fetchRampData.mjs';
 import { getGameInfo } from './processGameSheet.mjs';
 import * as dataModel from './dataModel.mjs';
-import { isEqual } from 'lodash-es'; 
+import { isEqual } from 'lodash-es';
 
 /**
  * This worker thread monitors a Ramp Rosters online gamesheet and reports changes in game data to the main thread. 
@@ -29,7 +29,6 @@ const updateInterval = workerData.updateInterval || 15000; // Default to 15 seco
 
 // Initialize game data variables
 let currentGameData = { ...dataModel.GameData }; // Will hold the current state of the game data
-let previousGameData = { ...dataModel.GameData }; // Initialize previousGameData with a copy of the default game data model for initial comparison
 
 // Initial scraping
 try {
@@ -40,24 +39,24 @@ try {
       document = await fetchDocument(gamesheetUrl);
       // Validate document.
       if (!document) {
-          // Handle case where document is not correctly populated
-          console.error("Failed to fetch or parse the document.");
-          return; // Or throw an error
+        // Handle case where document is not correctly populated
+        console.error("Failed to fetch or parse the document.");
+        return; // Or throw an error
       }
-      
+
       const gameInfo = getGameInfo(document);
 
       // Initialize currentGameData with the initial scrape
-      previousGameData.gameNumber = gameInfo.gameNumber;
-      previousGameData.gamesheetId = gamesheetId;
-      previousGameData.divisionId = divisionId;
-      previousGameData.homeTeamName = gameInfo.homeTeamName;
-      previousGameData.awayTeamName = gameInfo.awayTeamName;
-      previousGameData.gameLocation = gameInfo.gameLocation;
-      previousGameData.homeTeamGoals = 0;
-      previousGameData.awayTeamGoals = 0;
+      currentGameData.gameNumber = gameInfo.gameNumber;
+      currentGameData.gamesheetId = gamesheetId;
+      currentGameData.divisionId = divisionId;
+      currentGameData.homeTeamName = gameInfo.homeTeamName;
+      currentGameData.awayTeamName = gameInfo.awayTeamName;
+      currentGameData.gameLocation = gameInfo.gameLocation;
+      currentGameData.homeTeamGoals = 0;
+      currentGameData.awayTeamGoals = 0;
 
-      parentPort.postMessage({ type: 'gameDataUpdate', data: previousGameData });
+      parentPort.postMessage({ type: 'gameDataUpdate', data: currentGameData });
 
     } catch (error) {
       console.error('Error during initial scraping:', error);
@@ -84,16 +83,32 @@ try {
           const newGoal = gameInfo.goals[i];
           if (i >= currentGameData.goals.length) {
             // New goal, send to main thread
-            parentPort.postMessage({ type: 'newGoal', gameId: gamesheetId, data: newGoal });
+            parentPort.postMessage({ type: 'newGoal', gamesheetId: gamesheetId, data: newGoal });
             currentGameData.goals.push(newGoal);
           } else {
             // Existing goal, update if changed
             if (!isEqual(currentGameData.goals[i], newGoal)) {
               currentGameData.goals[i] = newGoal;
-              parentPort.postMessage({ type: 'updatedGoal', gameId: gamesheetId, data: newGoal });
+              parentPort.postMessage({ type: 'updatedGoal', gamesheetId: gamesheetId, data: newGoal });
             }
           }
         }
+
+        // Check for deleted goals
+        if (currentGameData.goals.length > gameInfo.goals.length) {
+          for (let i = gameInfo.goals.length; i < currentGameData.goals.length; i++) {
+            parentPort.postMessage({ type: 'deletedGoal', gamesheetId: gamesheetId, data: currentGameData.goals[i] });
+          }
+          currentGameData.goals.splice(gameInfo.goals.length); // Remove deleted goals from currentGameData
+        }
+      }
+
+      // Check for deleted penalties
+      if (currentGameData.penalties && gameInfo.penalties && currentGameData.penalties.length > gameInfo.penalties.length) {
+        for (let i = gameInfo.penalties.length; i < currentGameData.penalties.length; i++) {
+          parentPort.postMessage({ type: 'deletedPenalty', gamesheetId: gamesheetId, data: currentGameData.penalties[i] });
+        }
+        currentGameData.penalties.splice(gameInfo.penalties.length); // Remove deleted penalties from currentGameData
       }
 
       // Update penalties, sending new penalties to main thread and updating existing ones
@@ -106,13 +121,13 @@ try {
           const newPenalty = gameInfo.penalties[i];
           if (i >= currentGameData.penalties.length) {
             // New penalty, send to main thread
-            parentPort.postMessage({ type: 'newPenalty', gameId: gamesheetId, data: newPenalty });
+            parentPort.postMessage({ type: 'newPenalty', gamesheetId: gamesheetId, data: newPenalty });
             currentGameData.penalties.push(newPenalty);
           } else {
             // Existing penalty, update if changed
             if (!isEqual(currentGameData.penalties[i], newPenalty)) {
               currentGameData.penalties[i] = newPenalty;
-              parentPort.postMessage({ type: 'updatedPenalty', gameId: gamesheetId, data: newPenalty });
+              parentPort.postMessage({ type: 'updatedPenalty', gamesheetId: gamesheetId, data: newPenalty });
             }
           }
         }
@@ -123,25 +138,24 @@ try {
         currentGameData.penalties = gameInfo.penalties;
       }
 
-      currentGameData.awayTeamGoals = gameInfo.awayTeamGoals;
-      currentGameData.homeTeamGoals = gameInfo.homeTeamGoals;
-
       // Compare goals and send message if changed
-      if (currentGameData && previousGameData &&
-        (currentGameData.awayTeamGoals !== previousGameData.awayTeamGoals ||
-          currentGameData.homeTeamGoals !== previousGameData.homeTeamGoals)) {
-        previousGameData.awayTeamGoals = currentGameData.awayTeamGoals;
-        previousGameData.homeTeamGoals = currentGameData.homeTeamGoals;
+      if (currentGameData &&
+        (currentGameData.awayTeamGoals !== gameInfo.awayTeamGoals ||
+          currentGameData.homeTeamGoals !== gameInfo.homeTeamGoals)) {
+
+        currentGameData.awayTeamGoals = gameInfo.awayTeamGoals;
+        currentGameData.homeTeamGoals = gameInfo.homeTeamGoals;
+
         parentPort.postMessage({
           type: 'goalsUpdated',
-          gameId: gameId,
+          gamesheetId: gamesheetId,
           data: { awayTeamGoals: currentGameData.awayTeamGoals, homeTeamGoals: currentGameData.homeTeamGoals }
         });
       }
 
     } catch (error) {
       console.error('Error during periodic update:', error);
-      parentPort.postMessage({ type: 'gameDataError', gamesheetId: gameId, error: error.message }); // Send error message to main thread
+      parentPort.postMessage({ type: 'gameDataError', gamesheetId: gamesheetId, error: error.message }); // Send error message to main thread
     } finally {
       document = null; // Nullify document after use to aid garbage collection
     }

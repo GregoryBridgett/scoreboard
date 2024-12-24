@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as EventEmitter from 'events';
 
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -13,8 +14,7 @@ const clients = new Set();
 // Timer for server shutdown
 let serverTimeout;
 
-// Store scoreboard data for all games
-const scoreboardData = {};
+// Data structure to map scoreboard IDs to worker threads
 // Map scoreboard IDs to game IDs
 const scoreboardGameMap = {};
 const gameEventEmitter = new EventEmitter();
@@ -22,26 +22,10 @@ const gameEventEmitter = new EventEmitter();
 const workerThreads = {};
 // Store timers for each game to track client subscriptions
 const gameTimers = new Map();
+
+
 // Use body-parser to parse JSON request bodies
 app.use(bodyParser.json());
-
-// Function to get initial game data (replace with actual logic)
-function getInitialGameData(scoreboardId) {
-    // Replace with your logic to fetch initial game data based on scoreboardId
-    // This is just dummy data for now
-    return {
-        scoreboardId: scoreboardId,
-        scores: [0, 0],
-        goals: [],
-        homeTeamShots: 0,
-        awayTeamShots: 0,
-        penalties: [],
-        gameInfo: {
-            team1: { name: 'Team A', color: 'red' },
-            team2: { name: 'Team B', color: 'blue' }
-        }
-    };
-}
 
 // Endpoint for SSE connection
 app.get('/scoreboard-updates', (req, response) => {
@@ -72,9 +56,14 @@ app.get('/scoreboard-updates', (req, response) => {
         }
     }, 120000)); // 2 minutes
 
-    // Send initial data to the client
-    if (gameId && scoreboardData[gameId]) {
-        const initialData = { type: 'initialData', data: scoreboardData[gameId], gameId: gameId }; // Send all game data initially
+    // Send initial data to the client.
+    if (gameId && workerThreads[gameId]) {
+        // Request initial game data from the worker.
+        workerThreads[gameId].postMessage({ type: 'getInitialGameData', scoreboardId: scoreboardId });
+    }
+
+    const sendInitialData = (initialData) => {
+        const initialData = { type: 'initialData', data: initialData, gameId: gameId }; // Send all game data initially
         response.write(`data: ${JSON.stringify(initialData)}\n\n`); 
     }
 
@@ -116,7 +105,6 @@ function terminateWorker(gameId) {
         if (scoreboardId) {
             delete scoreboardGameMap[scoreboardId];
         }
-        delete scoreboardData[gameId];
         gameTimers.delete(gameId); 
         console.log(`Worker terminated for gameId: ${gameId}`);
     }
@@ -131,7 +119,6 @@ function terminateWorkerAndData(gameId) {
         if (scoreboardId) {
             delete scoreboardGameMap[scoreboardId];
         }
-        delete scoreboardData[gameId];
         gameTimers.delete(gameId); 
         console.log(`Worker terminated for gameId: ${gameId}`);
     }
@@ -174,7 +161,6 @@ app.post('/startGame/:scoreboardId', (req, res) => {
     // Generate a unique gameId (you might want to use a library like uuid for this)
     const gameId = Math.random().toString(36).substring(2, 15); 
     scoreboardGameMap[scoreboardId] = gameId;
-    scoreboardData[gameId] = { scores: [], goals: [], penalties: [], homeTeamShots: 0, awayTeamShots: 0 };  
     
 
     const worker = new Worker(path.join(__dirname, 'gameWorker.js'), {
@@ -199,20 +185,19 @@ app.post('/startGame/:scoreboardId', (req, res) => {
 
     worker.on('message', (data) => {
         if (data.type === 'gameDataUpdate') {
-            if (scoreboardData[data.gameId]) {
-                // Apply partial update to the scoreboard data in the main thread
-                for (const key in data.data) {
-                    scoreboardData[data.gameId][key] = data.data[key];
+            gameEventEmitter.emit('gameUpdate', {
+                type: 'gameDataUpdate',
+                scoreboardId: data.scoreboardId, 
+                data: data.data
+            });
+        } else if (data.type === 'initialGameData') {
+            // Send initial data to the clients that are subscribed to this scoreboardId
+            for (const client of [...clients]) {
+                if (client.gameId === data.gameId) {
+                    const initialData = { type: 'initialData', data: data.data, gameId: data.gameId };
+                    client.write(`data: ${JSON.stringify(initialData)}\n\n`);
                 }
-                // Emit the game update event with the scoreboardId
-                gameEventEmitter.emit('gameUpdate', {
-                    type: 'gameDataUpdate',
-                    scoreboardId: data.scoreboardId, 
-                    data: data.data
-                });
-            } else {
-                console.error('Game ID not found:', data.gameId);
-            }
+            }            
         }
     });
 
@@ -238,7 +223,6 @@ app.post('/forceUpdate/:scoreboardId', (req, res) => {
 
 // Endpoint to get current scores, goals, and penalties
 app.get('/scores', (req, res) => {
-    res.json(scoreboardData); 
 });
 
 // Endpoint to get initial game information
@@ -250,12 +234,12 @@ app.get('/gameInfo/:scoreboardId', (req, res) => {
         return res.status(404).json({ message: 'Scoreboard ID not found' });
     }
 
-    if (scoreboardData[gameId]) {
-        // Return the full game data
-        res.json(scoreboardData[gameId]);
+    if (workerThreads[gameId]) {
+        workerThreads[gameId].postMessage({ type: 'getGameInfo', scoreboardId: scoreboardId });
+        // The worker will respond with a 'gameInfoResponse' message, which should be handled to send the data to the client.
+        // ... add logic here to handle the 'gameInfoResponse' and send it to the client
     } else {
-        // Game data not found for this gameId
-        res.status(404).json({ message: 'Game data not found for this scoreboard ID' });
+        res.status(404).json({ message: 'Game worker not found for this scoreboard ID' });
     }
 });
 
@@ -270,18 +254,13 @@ app.post('/scores/:scoreboardId', (req, res) => {
 
     const updatedScores = req.body; // Expecting an array of scores
 
-    if (scoreboardData[gameId]) {
-        // Update existing game data
-        scoreboardData[gameId] = { ...scoreboardData[gameId], ...updatedScores };
-
-        // Send the score update to clients
-        const update = { type: 'scoreUpdate', data: updatedScores };
-        gameEventEmitter.emit('gameUpdate', update);
-
-        res.status(200).json({ message: 'Score updated successfully' });
+    if (workerThreads[gameId]) {
+        // Send the update request to the worker thread
+        workerThreads[gameId].postMessage({ type: 'updateScores', scoreboardId: scoreboardId, data: updatedScores });
+        // The worker will handle the update and emit the 'gameUpdate' event
+        res.status(200).json({ message: 'Score update request sent to worker' });
     } else {
-        // Game data not found for this gameId
-        res.status(404).json({ message: 'Game data not found for this scoreboard ID' });
+        res.status(404).json({ message: 'Game worker not found for this scoreboard ID' });
     }
 });
 

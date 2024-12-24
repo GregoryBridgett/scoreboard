@@ -1,16 +1,16 @@
 {
-    "name": "my-scoreboard-project", 
+    "name": "my-scoreboard-project",
     "version": "1.0.0",
     "private": true,
     "workspaces": [
-      "scoreboard-app/server",
-      "scoreboard-app/scoreboard",
-      "scoreboard-app/ui",
-      "scoreboard-app/common"
+        "scoreboard-app/server",
+        "scoreboard-app/scoreboard",
+        "scoreboard-app/ui",
+        "scoreboard-app/common"
     ],
     "dependencies": {
-      "jsdom": "^25.0.1",
-      "node-fetch": "^3.3.2"
+        "jsdom": "^25.0.1",
+        "node-fetch": "^3.3.2"
     },
     "type": "module"
-  }
+}

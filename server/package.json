@@ -2,6 +2,7 @@
   "name": "my-node-server",
   "version": "1.0.0",
   "description": "A Node.js server application using Express and Cors",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

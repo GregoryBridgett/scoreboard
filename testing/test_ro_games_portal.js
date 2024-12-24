@@ -1,7 +1,7 @@
-import { fetchDocument, fetchGameSheetJson } from '../common/fetchRampData.js';
-import { getDivisionId, getCurrentSeasonId } from '../common/getDivisionIds.js';
-import { handleError } from '../common/handleError.js';
-import { extractPenaltyData, extractScoringPlaysData } from '../server/processGameSheet.js';
+import { fetchDocument, fetchGameSheetJson } from '../server/fetchRampData.js';
+import { getDivisionId, getCurrentSeasonId } from '../server/getDivisionIds.js';
+import { handleError } from '../server/handleError.js';
+import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processGameSheet.js';
 
 /**
  * Displays a table of incomplete games from the provided game data.
@@ -79,7 +79,7 @@ async function main() {
       displayIncompleteGames(gameData);
 
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';
-      document = await fetchDocument(gameUrl);
+      document = await fetchDocument(gameUrl); 
       if (!document) return;
 
       // Ensure document is fully loaded before extracting data

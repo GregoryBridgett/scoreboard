@@ -1,10 +1,9 @@
-const express = require('express');
-const axios = require('axios');
-const bodyParser = require('body-parser');
-const { Worker } = require('worker_threads');
-const path = require('path');
-const fs = require('fs');
-const EventEmitter = require('events');
+import express from 'express';
+import bodyParser from 'body-parser';
+import { Worker } from 'worker_threads';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as EventEmitter from 'events';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,21 +18,12 @@ const scoreboardData = {};
 // Map scoreboard IDs to game IDs
 const scoreboardGameMap = {};
 const gameEventEmitter = new EventEmitter();
+// Store worker threads by game ID
+const workerThreads = {};
+// Store timers for each game to track client subscriptions
+const gameTimers = new Map();
 // Use body-parser to parse JSON request bodies
 app.use(bodyParser.json());
-
-// Function to scrape game data (replace with actual scraping logic)
-async function scrapeGameData() {
-    try {
-        const response = await axios.get('https://example.com/game-data'); // Replace with the actual URL
-        // Process the response and extract game data
-        const gameData = response.data; 
-        return gameData;
-    } catch (error) {
-        console.error('Error scraping game data:', error);
-        return null;
-    }
-}
 
 // Function to get initial game data (replace with actual logic)
 function getInitialGameData(scoreboardId) {
@@ -66,22 +56,48 @@ app.get('/scoreboard-updates', (req, response) => {
         'Connection': 'keep-alive',
     });
 
+    const gameId = scoreboardGameMap[scoreboardId];
+
     // Add client to the set
     clients.add(response);
 
+    // Client subscribed - start or reset the timer
+    if (gameTimers.has(gameId)) {
+        clearTimeout(gameTimers.get(gameId)); 
+    }
+    gameTimers.set(gameId, setTimeout(() => {
+        // Timer expired - check if there are still no clients
+        if (!clientsForGame(gameId)) {
+            terminateWorker(gameId);
+        }
+    }, 120000)); // 2 minutes
+
     // Send initial data to the client
-    const gameId = scoreboardGameMap[scoreboardId];
     if (gameId && scoreboardData[gameId]) {
-        const initialData = { type: 'initialData', data: scoreboardData[gameId] }; // Send all game data initially
+        const initialData = { type: 'initialData', data: scoreboardData[gameId], gameId: gameId }; // Send all game data initially
         response.write(`data: ${JSON.stringify(initialData)}\n\n`); 
+    }
+
+    function clientsForGame(gameId) {
+        // Check if any client in the 'clients' set is subscribed to this gameId
+        return [...clients].some(client => {
+            // Assuming clients store the gameId they are subscribed to (you might need to adjust this)
+            return client.gameId === gameId;
+        });
     }
 
     // Remove client from the set when connection closes
     response.on('close', () => {
-        clients.delete(response);        
+        clients.delete(response);
         if (clients.size === 0) {
             // Optional: Start a timer to shut down the server if no clients are connected for a while
             // ... (implementation for server shutdown)
+        } else {
+            // Client unsubscribed - decrement client count and potentially start timer
+            if (!clientsForGame(gameId) && gameTimers.has(gameId)) {
+                clearTimeout(gameTimers.get(gameId)); // Reset any existing timer
+                gameTimers.set(gameId, setTimeout(() => terminateWorker(gameId), 120000)); // 2 minutes
+            }
         }
     });
     // If a client connects after the timeout has started, clear the timeout
@@ -90,6 +106,21 @@ app.get('/scoreboard-updates', (req, response) => {
         serverTimeout = null;
     }
 });
+
+// Function to terminate worker and remove associated data
+function terminateWorker(gameId) {
+    if (workerThreads[gameId]) {
+        workerThreads[gameId].terminate();
+        delete workerThreads[gameId];
+        const scoreboardId = Object.keys(scoreboardGameMap).find(key => scoreboardGameMap[key] === gameId);
+        if (scoreboardId) {
+            delete scoreboardGameMap[scoreboardId];
+        }
+        delete scoreboardData[gameId];
+        gameTimers.delete(gameId); 
+        console.log(`Worker terminated for gameId: ${gameId}`);
+    }
+};
 
 // Event listener for game updates
 gameEventEmitter.on('gameUpdate', (update) => {
@@ -129,18 +160,19 @@ app.post('/startGame/:scoreboardId', (req, res) => {
     const gameId = Math.random().toString(36).substring(2, 15); 
     scoreboardGameMap[scoreboardId] = gameId;
     scoreboardData[gameId] = { scores: [], goals: [], penalties: [], homeTeamShots: 0, awayTeamShots: 0 };  
+    
 
     const worker = new Worker(path.join(__dirname, 'gameWorker.js'), {
-        workerData: { gameId, scoreboardId } 
+        workerData: { gameId } 
     });
 
     worker.on('message', (data) => {
         if (data.type === 'gameDataUpdate') {
-            const gameId = scoreboardGameMap[data.scoreboardId]; // Get the game ID
-            if (gameId) {
-                // Update the scoreboard data in the main thread
-                scoreboardData[gameId] = data.data;
-
+            if (scoreboardData[data.gameId]) {
+                // Apply partial update to the scoreboard data in the main thread
+                for (const key in data.data) {
+                    scoreboardData[data.gameId][key] = data.data[key];
+                }
                 // Emit the game update event with the scoreboardId
                 gameEventEmitter.emit('gameUpdate', {
                     type: 'gameDataUpdate',
@@ -148,13 +180,30 @@ app.post('/startGame/:scoreboardId', (req, res) => {
                     data: data.data
                 });
             } else {
-                console.error('Game ID not found for scoreboard ID:', data.scoreboardId);
+                console.error('Game ID not found:', data.gameId);
             }
         }
     });
 
+    // Store the worker in the dictionary
+    workerThreads[gameId] = worker;
+
     res.json({ gameId, scoreboardId });
 });
+
+// Endpoint to force an update in the worker thread
+app.post('/forceUpdate/:scoreboardId', (req, res) => {
+    const scoreboardId = req.params.scoreboardId;
+    const gameId = scoreboardGameMap[scoreboardId];
+
+    if (gameId && workerThreads[gameId]) { 
+        workerThreads[gameId].postMessage({ type: 'forceUpdate' });
+        res.json({ message: 'Update signal sent to worker.' });
+    } else {
+        res.status(404).json({ message: 'Game not found.' });
+    }
+});
+
 
 // Endpoint to get current scores, goals, and penalties
 app.get('/scores', (req, res) => {
@@ -210,7 +259,7 @@ app.get('/teamColors/:teamId/:colorSet', (req, res) => {
     const teamId = req.params.teamId;
     const colorSet = req.params.colorSet; // 'home' or 'away'
 
-    fs.readFile('teamColors.json', 'utf-8', (err, data) => {
+    fs.readFile(path.join(__dirname, 'teamColors.json'), 'utf-8', (err, data) => {
         if (err) {
             console.error("Error reading teamColors.json:", err);
             return res.status(500).json({ message: "Error retrieving team colors" });

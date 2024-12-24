@@ -1,7 +1,7 @@
-import { fetchDocument, fetchGameSheetJson } from '../server/fetchRampData.js';
-import { getDivisionId, getCurrentSeasonId } from '../server/getDivisionIds.js';
-import { handleError } from '../server/handleError.js';
-import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processGameSheet.js';
+import { fetchDocument, fetchGameSheetList } from '../server/fetchRampData.mjs';
+import { getDivisionId, getCurrentSeasonId } from '../server/getDivisionIds.mjs';
+import { handleError } from '../server/handleError.mjs';
+import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processGameSheet.mjs';
 
 /**
  * Displays a table of incomplete games from the provided game data.
@@ -74,7 +74,7 @@ async function main() {
     console.log("Season ID:", seasonID);
 
     const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
-    const gameData = await fetchGameSheetJson(apiUrl);
+    const gameData = await fetchGameSheetList(apiUrl);
     if (gameData) {
       displayIncompleteGames(gameData);
 
@@ -85,9 +85,11 @@ async function main() {
       // Ensure document is fully loaded before extracting data
       const penaltyData = extractPenaltyData(document);
       const scoringPlays = extractScoringPlaysData(document);
+      const scores = getScoreData(document);
 
       console.log('Scoring Plays:', scoringPlays);
       console.log('Penalty Data', penaltyData);
+      console.log('Scores:', scores);
 
     } else {
       console.log("No game data received from API.");

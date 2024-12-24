@@ -1,19 +1,15 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
+
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "program": "${workspaceFolder}/test_ro_games_portal.js"
-            "args": "U16A"
+            "name": "Launch Program with Args",
+            "program": "${workspaceFolder}/testing/test_ro_games_portal.js", // Path to your script
+            "args": ["U16A"], // Put the text ID here
+            "cwd": "${workspaceFolder}", // Optional: Set the current working directory
+            "console": "integratedTerminal" // Optional: Use the integrated terminal.
         }
     ]
 }

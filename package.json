@@ -2,14 +2,14 @@
     "name": "my-scoreboard-project",
     "version": "1.0.0",
     "private": true,
-    "workspaces": [
-        "scoreboard-app/server",
-        "scoreboard-app/scoreboard",
-        "scoreboard-app/ui",
-        "scoreboard-app/common"
-    ],
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
     "dependencies": {
+        "express": "^4.18.2",
         "jsdom": "^25.0.1",
+        "lodash": "^4.17.21",
         "node-fetch": "^3.3.2"
     },
     "type": "module"

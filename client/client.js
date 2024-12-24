@@ -57,8 +57,20 @@ fetch(`/gameInfo/${scoreboardId}`)
 // EventSource for real-time updates
 const eventSource = new EventSource(`/scoreboard-updates?scoreboardId=${scoreboardId}`);
 eventSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  updateScoreboard(data);
+    const message = JSON.parse(event.data);
+    if (message.type === 'partialUpdate') {
+        applyPartialUpdate(message.data);
+    } else {
+        localGameState = message.data; // Update the local game state
+        updateScoreboard(localGameState);  // Update the UI
+    }
+};
+
+function applyPartialUpdate(partialUpdate) {
+    for (const key in partialUpdate) {
+        localGameState[key] = partialUpdate[key];
+    }
+    updateScoreboard(localGameState);
 }
 
 eventSource.onerror = function(error) {

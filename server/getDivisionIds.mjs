@@ -1,3 +1,5 @@
+import { handleError } from './handleError.mjs';
+
 /**
  * Retrieves the division ID from the Ringette Ontario website.
  *
@@ -12,6 +14,11 @@
  * It extracts the division ID from the link's href attribute.
  */
 export function getDivisionId(leagueText, divisionText, document) {
+  if (leagueText === "Tournaments") {
+    return null;
+    // Finish writing this code
+  } 
+
   const leagueListItem = Array.from(document.querySelectorAll('li')).find(li => li.textContent.includes(leagueText)
   );
   if (!leagueListItem) {
@@ -32,7 +39,7 @@ export function getDivisionId(leagueText, divisionText, document) {
     handleError(`Could not extract href number from "${href}"`, new Error("Invalid href format"));
     return null;
   }
-  return hrefNumber;
+  return hrefNumber; 
 }
 /**
  * Retrieves the current season ID from the Ringette Ontario website.

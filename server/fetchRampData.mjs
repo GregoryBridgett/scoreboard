@@ -1,4 +1,4 @@
-import { handleError } from './handleError.js';
+import { handleError } from './handleError.mjs';
 
 /**
  * Fetches the HTML content of a given URL and returns a parsed document object.
@@ -35,7 +35,7 @@ export async function fetchDocument(url) {
  *
  * This function makes a GET request to the specified API endpoint and parses the JSON response. If an error occurs, it logs the error and returns null.
  */
-export async function fetchGameSheetJson(url) {
+export async function fetchGameSheetList(url) {
   const fetch = await import('node-fetch').then(module => module.default);
 
   console.log(`Fetching game table data from API: ${url}`);

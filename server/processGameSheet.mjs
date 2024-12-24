@@ -150,3 +150,39 @@ export function getScoreData(document) {
     awayScore,
   };
 }
+
+/**
+ * Extracts game information from the provided HTML document.
+ *
+ * @param {Document} document - The HTML document to extract data from.
+ * @returns {object} An object containing the extracted game information.
+ */
+export function getGameInfo(document) {
+  const gameInfo = {};
+
+  const scheduleTable = document.getElementById('tblSchedule');
+  if (scheduleTable) {
+    const rows = scheduleTable.querySelectorAll('tbody tr');
+    if (rows.length > 0) { // Check if there's at least one data row (excluding header)
+      const dataRow = rows[0]; // Get the first data row
+      const cells = dataRow.querySelectorAll('td');
+
+      // Assuming the order of cells is: gameNumber, gameDate, gameLocation, homeTeamName, awayTeamName
+      if (cells.length = 5) {
+        gameInfo.gameNumber = cells[0].textContent.trim();
+        gameInfo.gameDate = cells[1].textContent.trim();
+        gameInfo.gameLocation = cells[2].textContent.trim();
+        gameInfo.homeTeamName = cells[3].textContent.trim();
+        gameInfo.awayTeamName = cells[4].textContent.trim();
+      } else {
+        console.warn('Unexpected number of cells in schedule table row.');
+      }
+    } else {
+      console.warn('No data rows found in schedule table.');
+    }
+  } else {
+    console.warn('Schedule table not found.');
+  }
+
+  return gameInfo;
+}

@@ -10,7 +10,7 @@ const thirdPartyUrl = workerData.thirdPartyUrl;
 try {
   (async () => {
     try {
-      const gameData = await fetchGameSheetList(thirdPartyUrl);
+      const document = await fetchDocument(thirdPartyUrl);
       
       // Create initial data object using the data model (no need for deep copy here)
       const initialData = _.cloneDeep(dataModel.GameData); // Deep copy using Lodash

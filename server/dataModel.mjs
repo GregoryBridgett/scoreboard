@@ -5,20 +5,20 @@ const PlayerGoalInfo = {
   time: null,
   period: null,
   scorerName: null,
-  scorerId: null,
+  scorerNumber: null,
   firstAssisterName: null,
-  firstAssisterId: null,
+  firstAssisterNumber: null,
   secondAssisterName: null,
-  secondAssisterId: null
+  secondAssisterNumber: null
 };
 
 const PlayerPenaltyInfo = {
   teamName: null,
   teamId: null,
-  time: null,
   period: null,
+  time: null,
   playerName: null,
-  playerId: null,
+  playerNumber: null,
   penaltyDescription: null
 }
 
@@ -27,7 +27,7 @@ const GameTimeData = {
   timeRemaining: null,
   homeTeamShots: null,       // Number, Number of shots by home team
   awayTeamShots: null,       // Number, Number of shots by away team
-  homePenalties: [],
+  homePenalties: [],        // Array of PenaltyTimeData
   awayPenalties: []
 }
 
@@ -41,6 +41,8 @@ const GameData = {
   gameSheetId: null,              // String, ID for the game
   divisionId: null,
   gameNumber: null,
+  homeTeamId: null,
+  awayTeamId: null,
   gameLocation: null,
   homeTeamGoals: null,
   awayTeamGoals: null,

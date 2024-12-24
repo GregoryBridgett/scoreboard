@@ -56,11 +56,11 @@ export function extractScoringPlaysData(document) {
           time,
           period,
           scorerName,
-          scorerId,
+          scorerNumber,
           firstAssisterName,
-          firstAssisterId,
+          firstAssisterNumber,
           secondAssisterName,
-          secondAssisterId,
+          secondAssisterNumber,
         });
       }
     }
@@ -114,7 +114,7 @@ export function extractPenaltyData(document) {
         // Extract penalty name
         console.log(links[0].textContent);
         const penaltyNameMatch = playerId ? row.textContent.match(/.*for (.*)/) : null;
-        const penaltyName = penaltyNameMatch ? penaltyNameMatch[1].trim() : null;
+        const penaltyDescription = penaltyNameMatch ? penaltyNameMatch[1].trim() : null;
 
         // Create scoring play object
         penaltyData.push({
@@ -123,8 +123,8 @@ export function extractPenaltyData(document) {
           time,
           period,
           playerName,
-          playerId,
-          penaltyName,
+          playerNumber,
+          penaltyDescription,
         });
       }
     }

@@ -76,6 +76,7 @@ async function main() {
     const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
     const gameData = await fetchGameSheetList(apiUrl);
     if (gameData) {
+      console.log(gameData);
       displayIncompleteGames(gameData);
 
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';

@@ -122,6 +122,21 @@ function terminateWorker(gameId) {
     }
 };
 
+// Function to terminate worker and remove associated data
+function terminateWorkerAndData(gameId) {
+    if (workerThreads[gameId]) {
+        workerThreads[gameId].terminate();
+        delete workerThreads[gameId];
+        const scoreboardId = Object.keys(scoreboardGameMap).find(key => scoreboardGameMap[key] === gameId);
+        if (scoreboardId) {
+            delete scoreboardGameMap[scoreboardId];
+        }
+        delete scoreboardData[gameId];
+        gameTimers.delete(gameId); 
+        console.log(`Worker terminated for gameId: ${gameId}`);
+    }
+};
+
 // Event listener for game updates
 gameEventEmitter.on('gameUpdate', (update) => {
     // Iterate over a copy of the clients set to avoid issues with concurrent modification
@@ -164,6 +179,22 @@ app.post('/startGame/:scoreboardId', (req, res) => {
 
     const worker = new Worker(path.join(__dirname, 'gameWorker.js'), {
         workerData: { gameId } 
+    });
+
+    // Handle messages from workers:
+    worker.on('message', async (message) => {
+        if (message.type === 'requestData') {
+            if (message.dataName === 'teamColors') {
+                try {
+                    const jsonData = await fs.promises.readFile('server/teamColors.json', 'utf8');
+                    const teamColors = JSON.parse(jsonData);
+                    worker.postMessage({ type: 'dataResponse', dataName: 'teamColors', data: teamColors });
+                } catch (error) {
+                    worker.postMessage({ type: 'error', message: `Failed to load teamColors: ${error.message}` });
+                }
+            }
+        }
+        // ... other message handling logic
     });
 
     worker.on('message', (data) => {

@@ -1,5 +1,5 @@
 // Goal object definition
-const PlayerGoal = {
+const PlayerGoalInfo = {
   teamName: null,
   teamId: null,
   time: null,
@@ -12,7 +12,7 @@ const PlayerGoal = {
   secondAssisterId: null
 };
 
-const PlayerPenalty = {
+const PlayerPenaltyInfo = {
   teamName: null,
   teamId: null,
   time: null,
@@ -22,30 +22,39 @@ const PlayerPenalty = {
   penaltyDescription: null
 }
 
-// GameData object definition
-const GameData = {
-  scoreboardId: null,       // String, ID for the scoreboard
-  divisionId: null,
-  gameSheetId: null,              // String, ID for the game
-  homeTeamGoals: null,
-  awayTeamGoals: null,
-  homeTeamShots: null,       // Number, Number of shots by home team
-  awayTeamShots: null,       // Number, Number of shots by away team
+const GameTimeData = {
   period: null,
   timeRemaining: null,
+  homeTeamShots: null,       // Number, Number of shots by home team
+  awayTeamShots: null,       // Number, Number of shots by away team
+  homePenalties: [],
+  awayPenalties: []
+}
+
+const PenaltyTimeData = {
+  time: null,
+  playerNumber: null
+}
+
+// GameData object definition
+const GameData = {
+  gameSheetId: null,              // String, ID for the game
+  divisionId: null,
+  gameNumber: null,
+  gameLocation: null,
+  homeTeamGoals: null,
+  awayTeamGoals: null,
   homeTeamName: null,
-  homeTeamBgColor: null,
-  homeTeamFgColor: null,
   awayTeamName: null,
-  awayTeamBgColor: null,
-  awayTeamFgColor: null,
   goals: [],                // Array<Goal>, Goals scored during the game
   penalties: [],           // Array<Penalty>, Penalties incurred during the game
 };
 
 // Export the object definitions
 module.exports = {
-    PlayerGoal,
-    PlayerPenalty,
+    GameTimeData, 
+    PenaltyTimeData,
+    PlayerGoalInfo,
+    PlayerPenaltyInfo,
     GameData,
 };

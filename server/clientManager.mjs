@@ -1,39 +1,65 @@
-// clientManager.mjs
-import * as EventEmitter from 'events';
-
-const clients = new Set();
-const gameEventEmitter = new EventEmitter();
-
-export function addClient(response, gameId) {
-    response.gameId = gameId; // Store gameId with the client
-    clients.add(response);
-
-    response.on('close', () => {
-        clients.delete(response);
-        // Additional logic for handling client disconnections can be added here.
-        // For example, emitting an event or checking for game termination.
-    });
+function generateShortId(length = 12) {
+    const characters = 'abcdefghijklmnopqrstuvwxyz';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return result;
 }
 
-export function removeClient(response) {
-    clients.delete(response);
+function generateUniqueShortId(length = 12, existingIds) {
+    let newId;
+    do {
+        newId = generateShortId(length);
+    } while (existingIds.has(newId));
+    return newId;
 }
 
-export function broadcastUpdate(update) {
-    for (const client of [...clients]) {
-        // Check if the client is still connected before sending data
-        if (!client.destroyed) {
-            try {
-                client.write(`data: ${JSON.stringify(update)}\n\n`);
-            } catch (err) {
-                // Handle errors, such as client disconnections during the loop
-                console.error('Error sending data to client:', err);
-                clients.delete(client); // Remove the disconnected client
+export default class ClientManager {
+    constructor(io, gameManager) {
+        this.io = io;
+        this.gameManager = gameManager;
+        this.gameSubscriptions = new Map(); // Map game IDs to Sets of client IDs
+        this.clientData = new Map(); // clientId => { socketId, gameSheetId }
+    }
+
+    handleConnection(socket) {
+        const clientId = generateUniqueShortId(12, this.clientData.keys());
+        this.clientData.set(clientId, { socketId: socket.id, gameSheetId: null });
+
+        socket.on("subscribeToGame", (gameId) => {
+            const clientId = this.findClientIdBySocketId(socket.id);
+            if (clientId) {
+                this.clientData.get(clientId).gameSheetId = gameId;
             }
-        } else {
-            clients.delete(client); // Remove the disconnected client
+            if (!this.gameSubscriptions.has(gameId)) {
+                this.gameSubscriptions.set(gameId, new Set());
+            }
+            this.gameSubscriptions.get(gameId).add(socket.id);
+            console.log(`Client ${socket.id} subscribed to game ${gameId}`);
+        });
+
+        socket.on("unsubscribeFromGame", (gameId) => {
+            const clientId = this.findClientIdBySocketId(socket.id);
+            if (clientId) {
+                this.clientData.get(clientId).gameSheetId = null; 
+            }
+            if (this.gameSubscriptions.has(gameId)) {
+                this.gameSubscriptions.get(gameId).delete(socket.id);
+                console.log(`Client ${socket.id} unsubscribed from game ${gameId}`);
+                if (this.gameSubscriptions.get(gameId).size === 0) {
+                    this.gameSubscriptions.delete(gameId); // Remove empty game subscription
+                }
+            }
+        });
+    }
+
+    findClientIdBySocketId(socketId) {
+        for (const [clientId, clientInfo] of this.clientData) {
+            if (clientInfo.socketId === socketId) {
+                return clientId;
+            }
         }
+        return null; 
     }
 }
-
-export const getGameEventEmitter = () => gameEventEmitter;

@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+import { getDivisionNames, getLeagues } from '../server/getRampDivisionIds.mjs'; 
 
 export default function configureRoutes(app, connectionManager) {
 
@@ -74,30 +75,32 @@ export default function configureRoutes(app, connectionManager) {
         document = await fetchDocument(tournamentUrl);
         if (!document) return;
         const tournamentList = getTournaments(document);
-        res.status(201).json(jsonify(tournamentList)); // Placeholder response
+        res.status(200).json(JSON.stringify(tournamentList)); // Placeholder response
     });
 
     app.get('/schedule/leagues', (req, res) => {
-        // ... Implementation to get a list of leagues
-        res.status(200).json([]); // Placeholder response
+        const ringetteUrl = `http://ringetteontariogames.msa4.rampinteractive.com`;
+        document = await fetchDocument(ringetteUrl);
+        if (!document) return;
+        const leagues = getLeagues();
+        res.status(200).json(leagues); 
     });
 
-    app.get('/schedule/leagues/:leagueID/divisions', (req, res) => {
-        // ... Implementation to get divisions within a league
-        res.status(200).json([]); // Placeholder response
+    app.get('/schedule/leagues/:leagueName/divisions', (req, res) => {
+        const leagueName = req.params.leagueName;
+        const ringetteUrl = `http://ringetteontariogames.msa4.rampinteractive.com`;
+        document = await fetchDocument(ringetteUrl);
+        if (!document) return;
+        const divisionNames = getDivisionNames(document, leagueName);
+        res.status(200).json(divisionNames); 
     });
 
-    app.get('/schedule/leagues/:leagueID/divisions/:divisionID/teams', (req, res) => {
+    app.get('/schedule/leagues/:leagueName/divisions/:divisionName/teams', (req, res) => {
         // ... Implementation to get teams within a division
         res.status(200).json([]); // Placeholder response
     });
 
-    app.get('/schedule/leagues/:leagueID/divisions/:divisionID/games', (req, res) => {
-        // ... Implementation to get games within a division
-        res.status(200).json([]); // Placeholder response
-    });
-
-    app.get('/schedule/leagues/:leagueID/divisions/:divisionID/teams/:teamID/games', (req, res) => {
+    app.get('/schedule/leagues/:leagueID/divisions/:divisionID/team/:teamID/games', (req, res) => {
         // ... Implementation to get games for a specific team
         res.status(200).json([]); // Placeholder response
     });
@@ -109,21 +112,16 @@ export default function configureRoutes(app, connectionManager) {
     });
 
     // V. Scoreboard Control (Write Operations)
-    app.put('/scoreboard/:scoreboardID/score/home', (req, res) => {
+    app.put('/scoreboard/:scoreboardID/score/:homeaway/:score', (req, res) => {
         // ... Implementation using connectionManager to set the home score
         res.status(200).send('Home score updated'); // Placeholder response
     });
 
-    // (Similar routes for away score, game timer, penalties, shots, period)
-    app.put('/scoreboard/:scoreboardID/score/away', (req, res) => {
-        // ... Implementation using connectionManager to set the away score
-        res.status(200).send('Away score updated'); // Placeholder response
-    });
-
-    app.put('/scoreboard/:scoreboardID/gametimer', (req, res) => { /* ... */ });
+    app.post('/scoreboard/:scoreboardID/gametimer/:enable', (req, res) => { /* ... */ });
+    app.put('/scoreboard/:scoreboardID/gametimer/:time', (req, res) => { /* ... */ });
     app.post('/scoreboard/:scoreboardID/gametimer/start', (req, res) => { /* ... */ });
     app.post('/scoreboard/:scoreboardID/gametimer/stop', (req, res) => { /* ... */ });
-    app.put('/scoreboard/:scoreboardID/penalty', (req, res) => { /* ... */ });
+    app.put('/scoreboard/:scoreboardID/penalty/', (req, res) => { /* ... */ });
     app.delete('/scoreboard/:scoreboardID/penalty', (req, res) => { /* ... */ });
     app.put('/scoreboard/:scoreboardID/shots', (req, res) => { /* ... */ });
     app.put('/scoreboard/:scoreboardID/period', (req, res) => { /* ... */ });

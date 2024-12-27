@@ -1,47 +1,8 @@
 import { fetchDocument, fetchGameSheetList } from '../server/fetchRampData.mjs';
-import { getDivisionId, getCurrentSeasonId, getTournaments } from '../server/getRampDivisionIds.mjs';
+import { getIncompleteGames } from '../server/getRampDivisionIds.mjs';
+import { getDivisionNames, getDivisionId, getCurrentSeasonId, getTournaments, getLeagues, getTeamNames, getTeamId } from '../server/getRampDivisionIds.mjs';
 import { handleError } from '../server/handleError.mjs';
 import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processRampGameSheet.mjs';
-
-/**
- * Displays a table of incomplete games from the provided game data.
- *
- * @param {Array<object>} gameData - An array of game objects containing game information.
- *
- * This function filters the game data to find games that are not marked as completed and then outputs a table to the console with the date, home team, and away team for each incomplete game.
- */
-function displayIncompleteGames(gameData) {
-  try {
-    if (!Array.isArray(gameData)) {
-      throw new Error("Invalid game data format. Expected an array.");
-    }
-
-    // Filter games where completed is false
-    const incompleteGames = gameData.filter(game => game && typeof game.completed === 'boolean' && !game.completed);
-    const incompleteGamesFormatted = incompleteGames.map(game => ({
-      gameID: game.GID,
-      date: game.eDate,
-      homeTeam: game.HomeTeamName,
-      awayTeam: game.AwayTeamName,
-    }));
-
-    // Output incomplete games as a table
-    if (incompleteGames.length > 0) {
-      console.log("Incomplete Games:");
-      incompleteGamesFormatted.forEach(game => {
-        const gameID = game.gameID ? String(game.gameID).padEnd(7) : 'N/A'.padEnd(7);
-        const date = game.date ? game.date.substring(0, 10) : 'N/A';
-        const homeTeam = game.homeTeam ? game.homeTeam.padEnd(19) : 'N/A'.padEnd(19);
-        const awayTeam = game.awayTeam ? game.awayTeam.padEnd(19) : 'N/A'.padEnd(19);
-        console.log(`${gameID} | ${date} | ${homeTeam} | ${awayTeam} |`);
-      });
-    } else {
-      console.log("No incomplete games found.");
-    }
-  } catch (error) {
-    handleError("Error displaying incomplete games:", error);
-  }
-}
 
 /**
  * The main function that orchestrates the data retrieval and processing.
@@ -62,8 +23,17 @@ async function main() {
     let document = await fetchDocument(url);
     if (!document) return; // Exit if document retrieval failed
 
+    const leagueNames = getLeagues(document);
+    console.log("Leagues:",leagueNames);
+    
+
+
     const searchText = 'NCRRL';
-    const divisionId = getDivisionId(searchText, textId, document);
+    const divisionNames = getDivisionNames(document,searchText);
+    console.log("Divisions:",divisionNames);
+    const teamNames = getTeamNames(document, searchText,textId);
+    console.log("Teams:",teamNames);
+    const divisionId = getDivisionId(document, searchText, textId);
     if (!divisionId) return; // Exit if division ID retrieval failed
     console.log("Division ID:", divisionId);
 
@@ -73,27 +43,27 @@ async function main() {
     const seasonID = getCurrentSeasonId(document);
     console.log("Season ID:", seasonID);
 
-    const tournamentUrl = `http://ringetteontariogames.msa4.rampinteractive.com/tournaments`;
+/*    const tournamentUrl = `http://ringetteontariogames.msa4.rampinteractive.com/tournaments`;
     document = await fetchDocument(tournamentUrl);
     if (!document) return;
     const tournamentList = getTournaments(document);
     console.log("Tournaments:", tournamentList);
-
+*/
     const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
     const gameData = await fetchGameSheetList(apiUrl);
     if (gameData) {
-      //console.log(gameData);
-      //displayIncompleteGames(gameData);
+    console.log(gameData);
+    getIncompleteGames(gameData, "Ottawa Ice U16A - Falconer");
     }
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';
-      //document = await fetchDocument(gameUrl); 
+      document = await fetchDocument(gameUrl); 
       if (!document) return;
 
       // Ensure document is fully loaded before extracting data
       const penaltyData = extractPenaltyData(document);
       const scoringPlays = extractScoringPlaysData(document);
       const scores = getScoreData(document);
-
+      console.log("Team Number:",getTeamId(document,searchText,textId,"Ottawa Ice U16A - Falconer"));
       console.log('Scoring Plays:', scoringPlays);
       console.log('Penalty Data', penaltyData);
       console.log('Scores:', scores);

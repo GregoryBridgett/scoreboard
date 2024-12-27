@@ -8,6 +8,15 @@ class SseManager extends EventEmitter {
     this.clientManager = clientManager;
     this.clients = new Map();
     this.clientGameSubscriptions = new Map(); // Store client subscriptions
+
+    // Listen for client subscription/unsubscription events
+    clientManager.on('clientSubscribed', (clientId, gameId) => {
+        this.subscribeClientToGame(clientId, gameId);
+    });    
+    clientManager.on('clientUnsubscribed', (clientId, gameId) => {
+        this.unsubscribeClientFromGame(clientId, gameId);
+    }); 
+
   }
 
   addClient(clientId, res) {
@@ -51,7 +60,7 @@ class SseManager extends EventEmitter {
     console.log(`Client ${clientId} subscribed to game ${gameId}`);
   }
 
-  unsubscribeFromGame(clientId, gameId) {
+  unsubscribeClientFromGame(clientId, gameId) {
     if (this.clientGameSubscriptions.has(clientId)) {
       this.clientGameSubscriptions.get(clientId).delete(gameId);
       console.log(`Client ${clientId} unsubscribed from game ${gameId}`);

@@ -1,3 +1,5 @@
+
+
 function generateShortId(length = 12) {
     const characters = 'abcdefghijklmnopqrstuvwxyz';
     let result = '';
@@ -22,6 +24,16 @@ export default class ClientManager {
         this.clientData = new Map(); // clientId => { socketId, gameSheetId }
     }
 
+    on(event, callback) {
+        if (event === 'subscribeToGame' || event === 'unsubscribeFromGame') {
+            this.io.on('connection', (socket) => {
+                socket.on(event, (data) => {
+                    callback(data, socket); 
+                });
+            });
+        }
+    }
+
     handleConnection(socket) {
         const clientId = generateUniqueShortId(12, this.clientData.keys());
         this.clientData.set(clientId, { socketId: socket.id, gameSheetId: null });
@@ -36,6 +48,7 @@ export default class ClientManager {
             }
             this.gameSubscriptions.get(gameId).add(socket.id);
             console.log(`Client ${socket.id} subscribed to game ${gameId}`);
+            this.io.emit('clientSubscribed', { clientId, gameId }); 
         });
 
         socket.on("unsubscribeFromGame", (gameId) => {
@@ -50,6 +63,7 @@ export default class ClientManager {
                     this.gameSubscriptions.delete(gameId); // Remove empty game subscription
                 }
             }
+            this.io.emit('clientUnsubscribed', { clientId, gameId });
         });
     }
 

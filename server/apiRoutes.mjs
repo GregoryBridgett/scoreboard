@@ -1,5 +1,4 @@
 // apiRoutes.mjs
-// Make sure the configureRoutes function is exported from this file.
 export default function configureRoutes(app, clientManager, sseManager) { 
 
     // I. Client and UI Registration (Management)
@@ -21,14 +20,6 @@ export default function configureRoutes(app, clientManager, sseManager) {
 
         // Establish SSE connection using sseManager
         sseManager.handleSSEConnection(req, res, scoreboardId); 
-    });
-
-    // Event listeners for subscribe/unsubscribe, now interacting with sseManager
-    clientManager.on('subscribeToGame', (clientId, gameId) => {
-        sseManager.subscribeClientToGame(clientId, gameId);
-    });
-    clientManager.on('unsubscribeFromGame', (clientId, gameId) => {
-        sseManager.unsubscribeClientFromGame(clientId, gameId);
     });
 
     // III. Schedule Management (Read-Only)

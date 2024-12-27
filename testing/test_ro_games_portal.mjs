@@ -1,5 +1,5 @@
 import { fetchDocument, fetchGameSheetList } from '../server/fetchRampData.mjs';
-import { getDivisionId, getCurrentSeasonId } from '../server/getRampDivisionIds.mjs';
+import { getDivisionId, getCurrentSeasonId, getTournaments } from '../server/getRampDivisionIds.mjs';
 import { handleError } from '../server/handleError.mjs';
 import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processRampGameSheet.mjs';
 
@@ -73,14 +73,20 @@ async function main() {
     const seasonID = getCurrentSeasonId(document);
     console.log("Season ID:", seasonID);
 
+    const tournamentUrl = `http://ringetteontariogames.msa4.rampinteractive.com/tournaments`;
+    document = await fetchDocument(tournamentUrl);
+    if (!document) return;
+    const tournamentList = getTournaments(document);
+    console.log("Tournaments:", tournamentList);
+
     const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
     const gameData = await fetchGameSheetList(apiUrl);
     if (gameData) {
-      console.log(gameData);
-      displayIncompleteGames(gameData);
-
+      //console.log(gameData);
+      //displayIncompleteGames(gameData);
+    }
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';
-      document = await fetchDocument(gameUrl); 
+      //document = await fetchDocument(gameUrl); 
       if (!document) return;
 
       // Ensure document is fully loaded before extracting data
@@ -92,9 +98,7 @@ async function main() {
       console.log('Penalty Data', penaltyData);
       console.log('Scores:', scores);
 
-    } else {
-      console.log("No game data received from API.");
-    }
+
   } catch (error) {
     handleError("An error occurred in the main function:", error);
   }

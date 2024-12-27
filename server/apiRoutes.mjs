@@ -1,31 +1,80 @@
 // apiRoutes.mjs
-export default function configureRoutes(app, clientManager, sseManager) { 
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default function configureRoutes(app, connectionManager) {
 
     // I. Client and UI Registration (Management)
-    app.put('/client/scoreboard/:scoreboardID', (req, res) => {
+    app.get('/client/overlay/:scoreboardID', (req, res) => {
+       // const scoreboardID = req.params.scoreboardID;
+        const filePath = path.join(__dirname, '..', 'overlay', 'overlay.html'); 
+
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error('Error sending file:', err);
+                res.status(404).send('Scoreboard client app not found'); 
+            }
+        });
+    });    
+
+    app.post('/client/overlay/:scoreboardID', (req, res) => {
         const scoreboardID = req.params.scoreboardID;
-        // ... Implementation using clientManager to register a scoreboard
-        res.status(200).send('Scoreboard registered'); // Placeholder response
+
+        try {
+            // Register the client and get the generated clientID
+            const clientID = connectionManager.registerClient(scoreboardID);
+            
+            res.status(201).json({ message: 'Registered for events', sseEndpoint: `/api/scoreboard/${scoreboardID}/events`, clientID });
+        } catch (error) {
+            console.error('Error registering client:', error);
+            return res.status(500).json({ error: 'Failed to register client' });
+        }
+    });    
+
+    app.get('/client/ui/:scoreboardID', (req, res) => {
+       // const scoreboardID = req.params.scoreboardID;
+        const filePath = path.join(__dirname, '..', 'ui', 'ui.html'); 
+
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error('Error sending file:', err);
+                res.status(404).send('UI client app not found'); 
+            }
+        });
     });
 
-    app.put('/client/ui/:scoreboardID', (req, res) => {
+    app.post('/client/ui/:scoreboardID', (req, res) => {
         const scoreboardID = req.params.scoreboardID;
-        // ... Implementation using clientManager to register a UI
-        res.status(200).send('UI registered'); // Placeholder response
+        try {
+            const clientID = connectionManager.registerClient(scoreboardID);
+            res.status(201).json({ message: 'Registered for events', sseEndpoint: `/api/scoreboard/${scoreboardID}/events`, clientID });
+        } catch (error) {
+            console.error('Error registering client:', error);
+            return res.status(500).json({ error: 'Failed to register client' });
+        }
     });
 
     // II. Real-time Event Stream (SSE)
     app.get('/scoreboard/:scoreboardId/events', (req, res) => {
-        const scoreboardId = req.params.scoreboardId;
-
-        // Establish SSE connection using sseManager
-        sseManager.handleSSEConnection(req, res, scoreboardId); 
+        const scoreboardId = req.params.scoreboardId
+        const clientId = req.query.clientId // Get clientID from the query string
+        
+        if (!clientId) {
+            return res.status(400).send('Missing clientID')
+        }
+    
+        connectionManager.handleSSEConnection(req, res, scoreboardId, clientId) 
     });
 
     // III. Schedule Management (Read-Only)
     app.get('/schedule/tournaments', (req, res) => {
-        // ... Implementation to get a list of tournaments
-        res.status(200).json([]); // Placeholder response
+        const tournamentUrl = `http://ringetteontariogames.msa4.rampinteractive.com/tournaments`;
+        document = await fetchDocument(tournamentUrl);
+        if (!document) return;
+        const tournamentList = getTournaments(document);
+        res.status(201).json(jsonify(tournamentList)); // Placeholder response
     });
 
     app.get('/schedule/leagues', (req, res) => {
@@ -61,13 +110,13 @@ export default function configureRoutes(app, clientManager, sseManager) {
 
     // V. Scoreboard Control (Write Operations)
     app.put('/scoreboard/:scoreboardID/score/home', (req, res) => {
-        // ... Implementation using gameManager to set the home score
+        // ... Implementation using connectionManager to set the home score
         res.status(200).send('Home score updated'); // Placeholder response
     });
 
     // (Similar routes for away score, game timer, penalties, shots, period)
     app.put('/scoreboard/:scoreboardID/score/away', (req, res) => {
-        // ... Implementation using gameManager to set the away score
+        // ... Implementation using connectionManager to set the away score
         res.status(200).send('Away score updated'); // Placeholder response
     });
 

@@ -6,7 +6,7 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Program with Args",
-            "program": "${workspaceFolder}/testing/test_ro_games_portal.js", // Path to your script
+            "program": "${workspaceFolder}/testing/test_ro_games_portal.mjs", // Path to your script
             "args": ["U16A"], // Put the text ID here
             "cwd": "${workspaceFolder}", // Optional: Set the current working directory
             "console": "integratedTerminal" // Optional: Use the integrated terminal.

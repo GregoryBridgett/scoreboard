@@ -59,3 +59,35 @@ export function getCurrentSeasonId(document) {
   const selectedSeasonOption = seasonDropdown.querySelector('option[selected]');
   return selectedSeasonOption ? selectedSeasonOption.value : null;
 }
+
+/**
+ * Retrieves the list of tournaments and their associated URLs from the Ringette Ontario website.
+ *
+ * @param {Document} document - The HTML document to search within.
+ * @returns {Array<Object>} An array of objects, where each object has 'name' and 'url' properties.
+ */
+export function getTournaments(document) {
+    const tournaments = [];
+    const table = document.getElementById('tblPlayers');
+
+    if (table) {
+        const rows = table.querySelectorAll('tbody tr');
+
+        rows.forEach(row => {
+            if (!row.classList.contains('cf')) { // Skip header rows
+                const link = row.querySelector('a');
+                if (link) {
+                    tournaments.push({
+                        name: link.textContent.trim(),
+                        url: link.href.replace(/^.*\/\/[^\/]+/, '') // Make URL relative to base URL
+                    });
+                } else {
+                    console.warn('Row without an <a> tag found:', row.outerHTML);
+                }
+            }
+        });
+    } else {
+        handleError('Table with id "tblPlayers" not found', new Error('Table not found'));
+    }
+    return tournaments;
+}

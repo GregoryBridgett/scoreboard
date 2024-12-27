@@ -1,19 +1,14 @@
 import express from "express";
 import { createServer } from "http";
-import { Server } from "socket.io";
 import apiRoutes from "./apiRoutes.mjs";
 import GameManager from "./gameManager.mjs";
-import ClientManager from "./clientManager.mjs";
-import SseManager from "./sseManager.mjs";
+import ConnectionManager from "./connectionManager.mjs";
 
 const startServer = async (port = 3000) => {
   const app = express();
-  const httpServer = createServer(app);
-  const io = new Server(httpServer); // Create a Socket.IO instance
-
-  const gameManager = new GameManager();
-  const clientManager = new ClientManager(io);
-  const sseManager = new SseManager(gameManager, clientManager);
+  const httpServer = createServer(app); 
+  const connectionManager = new ConnectionManager(gameManager);
+  const gameManager = new GameManager(connectionManager)
 
   // Read LOG_LEVEL environment variable
   // If logLevel is undefined, default to "info"
@@ -35,11 +30,7 @@ const startServer = async (port = 3000) => {
   app.use(express.static("public"));
 
   // Use API routes
-  apiRoutes(app, gameManager, sseManager);
-
-  io.on("connection", (socket) => {
-    clientManager.handleConnection(socket);
-  });
+  apiRoutes(app, gameManager, connectionManager);
 
   httpServer.listen(port, () => {
     if (logLevel === 'debug') {

@@ -1,7 +1,7 @@
 import { fetchDocument, fetchGameSheetList } from '../server/fetchRampData.mjs';
-import { getDivisionId, getCurrentSeasonId } from '../server/getDivisionIds.mjs';
+import { getDivisionId, getCurrentSeasonId } from '../server/getRampDivisionIds.mjs';
 import { handleError } from '../server/handleError.mjs';
-import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processGameSheet.mjs';
+import { extractScoringPlaysData, extractPenaltyData, getScoreData } from '../server/processRampGameSheet.mjs';
 
 /**
  * Displays a table of incomplete games from the provided game data.

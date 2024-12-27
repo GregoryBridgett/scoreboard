@@ -1,11 +1,10 @@
 import { parentPort, workerData } from 'worker_threads';
 import { fetchDocument } from './fetchRampData.mjs';
-import { getGameInfo } from './processGameSheet.mjs';
+import { getGameInfo, extractPenaltyData, extractScoringPlaysData, getScoreData } from './processRampGameSheet.mjs';
 import * as dataModel from './dataModel.mjs';
 import { isEqual } from 'lodash-es';
-
 /**
- * This worker thread monitors a Ramp Rosters online gamesheet and reports changes in game data to the main thread. 
+ * This worker thread monitors a Ramp online gamesheet and reports changes in game data to the main thread. 
  * 
  * It initializes by fetching the initial game data, then periodically checks for updates.  
  * When changes are detected, it sends only the changed elements back to the main thread.
@@ -28,7 +27,7 @@ const gamesheetUrl = workerData.gamesheetUrl;
 const updateInterval = workerData.updateInterval || 15000; // Default to 15 seconds if updateInterval is not provided.
 
 // Initialize game data variables
-let currentGameData = { ...dataModel.GameData }; // Will hold the current state of the game data
+let previousGameData = new dataModel.GameData(); // Will hold the previous state of the game data for comparison
 
 // Initial scraping
 try {
@@ -46,17 +45,17 @@ try {
 
       const gameInfo = getGameInfo(document);
 
-      // Initialize currentGameData with the initial scrape
-      currentGameData.gameNumber = gameInfo.gameNumber;
-      currentGameData.gamesheetId = gamesheetId;
-      currentGameData.divisionId = divisionId;
-      currentGameData.homeTeamName = gameInfo.homeTeamName;
-      currentGameData.awayTeamName = gameInfo.awayTeamName;
-      currentGameData.gameLocation = gameInfo.gameLocation;
-      currentGameData.homeTeamGoals = 0;
-      currentGameData.awayTeamGoals = 0;
+      // Initialize previousGameData with the initial scrape
+      Object.assign(previousGameData, gameInfo, {
+        gamesheetId: gamesheetId,
+        divisionId: divisionId,
+        homeTeamGoals: 0, 
+        awayTeamGoals: 0,
+        goals: [],
+        penalties: []
+      });
 
-      parentPort.postMessage({ type: 'gameDataUpdate', data: currentGameData });
+      parentPort.postMessage({ type: 'gameDataUpdate', data: previousGameData });
 
     } catch (error) {
       console.error('Error during initial scraping:', error);
@@ -71,91 +70,46 @@ try {
 
     try {
       document = await fetchDocument(gamesheetUrl);
-      const gameInfo = getGameInfo(document);
+      
+      const newGoals = extractScoringPlaysData(document);
+      const newPenalties = extractPenaltyData(document);
+      const newScoreData = getScoreData(document)
 
-      // Update goals, sending new goals to main thread and updating existing ones
-      if (Array.isArray(gameInfo.goals)) {
-        if (!Array.isArray(currentGameData.goals)) {
-          currentGameData.goals = [];
-        }
+      const changedData = {};
 
-        for (let i = 0; i < gameInfo.goals.length; i++) {
-          const newGoal = gameInfo.goals[i];
-          if (i >= currentGameData.goals.length) {
-            // New goal, send to main thread
-            parentPort.postMessage({ type: 'newGoal', gamesheetId: gamesheetId, data: newGoal });
-            currentGameData.goals.push(newGoal);
-          } else {
-            // Existing goal, update if changed
-            if (!isEqual(currentGameData.goals[i], newGoal)) {
-              currentGameData.goals[i] = newGoal;
-              parentPort.postMessage({ type: 'updatedGoal', gamesheetId: gamesheetId, data: newGoal });
-            }
-          }
-        }
-
-        // Check for deleted goals
-        if (currentGameData.goals.length > gameInfo.goals.length) {
-          for (let i = gameInfo.goals.length; i < currentGameData.goals.length; i++) {
-            parentPort.postMessage({ type: 'deletedGoal', gamesheetId: gamesheetId, data: currentGameData.goals[i] });
-          }
-          currentGameData.goals.splice(gameInfo.goals.length); // Remove deleted goals from currentGameData
-        }
+      // Check for changes in goals and penalties
+      if (!isEqual(previousGameData.goals, newGoals)) {
+          changedData.goals = newGoals;
+      }
+      if (!isEqual(previousGameData.penalties, newPenalties)) {
+          changedData.penalties = newPenalties;
       }
 
-      // Check for deleted penalties
-      if (currentGameData.penalties && gameInfo.penalties && currentGameData.penalties.length > gameInfo.penalties.length) {
-        for (let i = gameInfo.penalties.length; i < currentGameData.penalties.length; i++) {
-          parentPort.postMessage({ type: 'deletedPenalty', gamesheetId: gamesheetId, data: currentGameData.penalties[i] });
-        }
-        currentGameData.penalties.splice(gameInfo.penalties.length); // Remove deleted penalties from currentGameData
+      // Check for score changes
+      if (previousGameData.awayTeamGoals !== newScoreData.awayTeamGoals) {
+          changedData.awayTeamGoals = newScoreData.awayTeamGoals;
+      }
+      if (previousGameData.homeTeamGoals !== newScoreData.homeTeamGoals) {
+          changedData.homeTeamGoals = newScoreData.homeTeamGoals;
       }
 
-      // Update penalties, sending new penalties to main thread and updating existing ones
-      if (Array.isArray(gameInfo.penalties)) {
-        if (!Array.isArray(currentGameData.penalties)) {
-          currentGameData.penalties = [];
-        }
-
-        for (let i = 0; i < gameInfo.penalties.length; i++) {
-          const newPenalty = gameInfo.penalties[i];
-          if (i >= currentGameData.penalties.length) {
-            // New penalty, send to main thread
-            parentPort.postMessage({ type: 'newPenalty', gamesheetId: gamesheetId, data: newPenalty });
-            currentGameData.penalties.push(newPenalty);
-          } else {
-            // Existing penalty, update if changed
-            if (!isEqual(currentGameData.penalties[i], newPenalty)) {
-              currentGameData.penalties[i] = newPenalty;
-              parentPort.postMessage({ type: 'updatedPenalty', gamesheetId: gamesheetId, data: newPenalty });
-            }
-          }
-        }
-
-        // Update currentGameData's penalties array
-        currentGameData.penalties = gameInfo.penalties;
-      } else if (Array.isArray(gameInfo.penalties)) { //For cases where current game penalties is null
-        currentGameData.penalties = gameInfo.penalties;
-      }
-
-      // Compare goals and send message if changed
-      if (currentGameData &&
-        (currentGameData.awayTeamGoals !== gameInfo.awayTeamGoals ||
-          currentGameData.homeTeamGoals !== gameInfo.homeTeamGoals)) {
-
-        currentGameData.awayTeamGoals = gameInfo.awayTeamGoals;
-        currentGameData.homeTeamGoals = gameInfo.homeTeamGoals;
-
+      // If there are changes, send gameDataUpdate message with only the changes
+      if (Object.keys(changedData).length > 0) {
         parentPort.postMessage({
-          type: 'goalsUpdated',
-          gamesheetId: gamesheetId,
-          data: { awayTeamGoals: currentGameData.awayTeamGoals, homeTeamGoals: currentGameData.homeTeamGoals }
+          type: 'gameDataUpdate',
+          gameId: gamesheetId,          
+          data: changedData
         });
+        // Update previousGameData with the new values
+        previousGameData.goals = [...newGoals];
+        previousGameData.penalties = [...newPenalties];
+        previousGameData.awayTeamGoals = newScoreData.awayTeamGoals;
+        previousGameData.homeTeamGoals = newScoreData.homeTeamGoals;
       }
 
     } catch (error) {
       console.error('Error during periodic update:', error);
-      parentPort.postMessage({ type: 'gameDataError', gamesheetId: gamesheetId, error: error.message }); // Send error message to main thread
+      // parentPort.postMessage({ type: 'gameDataError', gamesheetId: gamesheetId, error: error.message }); // Send error message to main thread if needed
     } finally {
       document = null; // Nullify document after use to aid garbage collection
     }

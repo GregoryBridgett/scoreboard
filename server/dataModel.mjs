@@ -1,62 +1,62 @@
-// Goal object definition
-const PlayerGoalInfo = {
-  teamName: null,
-  teamId: null,
-  time: null,
-  period: null,
-  scorerName: null,
-  scorerNumber: null,
-  firstAssisterName: null,
-  firstAssisterNumber: null,
-  secondAssisterName: null,
-  secondAssisterNumber: null
-};
-
-const PlayerPenaltyInfo = {
-  teamName: null,
-  teamId: null,
-  period: null,
-  time: null,
-  playerName: null,
-  playerNumber: null,
-  penaltyDescription: null
+// Goal class definition
+export class PlayerGoalInfo {
+  constructor() {
+    this.teamName = null;
+    this.teamId = null;
+    this.time = null;
+    this.period = null;
+    this.scorerName = null;
+    this.scorerNumber = null;
+    this.firstAssisterName = null;
+    this.firstAssisterNumber = null;
+    this.secondAssisterName = null;
+    this.secondAssisterNumber = null;
+  }
 }
 
-const GameTimeData = {
-  period: null,
-  timeRemaining: null,
-  homeTeamShots: null,       // Number, Number of shots by home team
-  awayTeamShots: null,       // Number, Number of shots by away team
-  homePenalties: [],        // Array of PenaltyTimeData
-  awayPenalties: []
+export class PlayerPenaltyInfo {
+  constructor() {
+    this.teamName = null;
+    this.teamId = null;
+    this.period = null;
+    this.time = null;
+    this.playerName = null;
+    this.playerNumber = null;
+    this.penaltyDescription = null;
+  }
 }
 
-const PenaltyTimeData = {
-  time: null,
-  playerNumber: null
+export class GameTimeData {
+  constructor() {
+    this.period = null;
+    this.timeRemaining = null;
+    this.homeTeamShots = null;       // Number, Number of shots by home team
+    this.awayTeamShots = null;       // Number, Number of shots by away team
+    this.homePenalties = [];        // Array of PenaltyTimeData
+    this.awayPenalties = [];
+  }
 }
 
-// GameData object definition
-const GameData = {
-  gameSheetId: null,              // String, ID for the game
-  divisionId: null,
-  gameNumber: null,
-  homeTeamId: null,
-  awayTeamId: null,
-  gameLocation: null,
-  homeTeamGoals: null,
-  awayTeamGoals: null,
-  homeTeamName: null,
-  awayTeamName: null,
-  goals: [],                // Array<Goal>, Goals scored during the game
-  penalties: [],           // Array<Penalty>, Penalties incurred during the game
-};
+export class PenaltyTimeData {
+  constructor() {
+    this.time = null;
+    this.playerNumber = null;
+  }
+}
 
-// Export the object definitions
-module.exports = {
-    GameTimeData, 
-    PenaltyTimeData,
-    PlayerGoalInfo,
-    PlayerPenaltyInfo,
-    GameData,
-};
+export class GameData {
+  constructor() {
+    this.gameSheetId = null;              // String, ID for the game
+    this.divisionId = null;
+    this.gameNumber = null;
+    this.homeTeamId = null;
+    this.awayTeamId = null;
+    this.gameLocation = null;
+    this.homeTeamGoals = null;
+    this.awayTeamGoals = null;
+    this.homeTeamName = null;
+    this.awayTeamName = null;
+    this.goals = [];                // Array<Goal>, Goals scored during the game
+    this.penalties = [];           // Array<Penalty>, Penalties incurred during the game
+  }
+}

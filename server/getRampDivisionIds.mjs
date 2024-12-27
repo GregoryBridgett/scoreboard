@@ -53,8 +53,7 @@ export function getCurrentSeasonId(document) {
   // Find the selected option in the ddlSeason dropdown
   const seasonDropdown = document.querySelector('[name="ddlSeason"]');
 
-  if (seasonDropdown) {
-  } else {
+  if (!seasonDropdown) {
     console.error("Error: Element with name 'ddlSeason' not found on the page.");
   }
   const selectedSeasonOption = seasonDropdown.querySelector('option[selected]');

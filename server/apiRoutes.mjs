@@ -1,8 +1,6 @@
 // apiRoutes.mjs
-import express from 'express';
-
-export function configureRoutes(app, gameManager, clientManager, sseManager) {
-    const gameEventEmitter = clientManager.getGameEventEmitter();
+// Make sure the configureRoutes function is exported from this file.
+export default function configureRoutes(app, clientManager, sseManager) { 
 
     // I. Client and UI Registration (Management)
     app.put('/client/scoreboard/:scoreboardID', (req, res) => {
@@ -20,7 +18,7 @@ export function configureRoutes(app, gameManager, clientManager, sseManager) {
     // II. Real-time Event Stream (SSE)
     app.get('/scoreboard/:scoreboardId/events', (req, res) => {
         const scoreboardId = req.params.scoreboardId;
-        
+
         // Establish SSE connection using sseManager
         sseManager.handleSSEConnection(req, res, scoreboardId); 
     });
@@ -90,8 +88,4 @@ export function configureRoutes(app, gameManager, clientManager, sseManager) {
     app.put('/scoreboard/:scoreboardID/shots', (req, res) => { /* ... */ });
     app.put('/scoreboard/:scoreboardID/period', (req, res) => { /* ... */ });
 
-    // Event Handling for Game Updates
-    gameEventEmitter.on('gameUpdate', (update) => {
-        sseManager.sendGameUpdate(update); 
-    });
 }

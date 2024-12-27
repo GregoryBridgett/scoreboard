@@ -7,11 +7,13 @@ class SseManager extends EventEmitter {
     this.gameManager = gameManager;
     this.clientManager = clientManager;
     this.clients = new Map();
+    this.clientGameSubscriptions = new Map(); // Store client subscriptions
   }
 
   addClient(clientId, res) {
     if (this.clients.has(clientId)) {
       console.warn(`Client ${clientId} already exists`);
+      this.removeClient(clientId)
       return;
     }
 
@@ -35,16 +37,37 @@ class SseManager extends EventEmitter {
     console.log(`Client ${clientId} connected`);
   }
 
-
-  removeClient(clientId) {
+  subscribeClientToGame(clientId, gameId) {
     if (!this.clients.has(clientId)) {
-      console.warn(`Client ${clientId} not found`);
+      console.warn(`Client ${clientId} not found for subscription`);
       return;
     }
-    this.clients.get(clientId).end();
-    this.clients.delete(clientId);
 
-    this.clientManager.removeClient(clientId);
+    if (!this.clientGameSubscriptions.has(clientId)) {
+      this.clientGameSubscriptions.set(clientId, new Set()); 
+    }
+
+    this.clientGameSubscriptions.get(clientId).add(gameId);
+    console.log(`Client ${clientId} subscribed to game ${gameId}`);
+  }
+
+  unsubscribeFromGame(clientId, gameId) {
+    if (this.clientGameSubscriptions.has(clientId)) {
+      this.clientGameSubscriptions.get(clientId).delete(gameId);
+      console.log(`Client ${clientId} unsubscribed from game ${gameId}`);
+    }
+  }
+
+  removeClient(clientId) {    
+    if (this.clients.has(clientId)) {
+      this.clients.get(clientId).end();
+      this.clients.delete(clientId);
+    } else {
+      console.warn(`Client ${clientId} not found for removal`);
+    }
+  
+    //this.clientManager.removeClient(clientId); // ClientManager doesn't handle socket management
+    this.clientGameSubscriptions.delete(clientId); // Remove subscriptions
     this.emit('clientDisconnected', clientId);
     console.log(`Client ${clientId} disconnected`);
   }
@@ -67,9 +90,25 @@ class SseManager extends EventEmitter {
   }
 
 
-  broadcastGameUpdate() {
-    for (const [clientId] of this.clients) {
-      this.sendGameUpdate(clientId);
+  getClientsForGame(gameId) {
+    const clients = new Set(); 
+    for (const [clientId, subscribedGames] of this.clientGameSubscriptions) {
+      if (subscribedGames.has(gameId)) {
+        clients.add(clientId);
+      }
+    }
+    return clients;
+  }
+
+  sendGameUpdateToClients(gameId) {
+    const clients = this.getClientsForGame(gameId); 
+
+    for (const clientId of clients) {
+      try {
+        this.sendGameUpdate(clientId);
+      } catch (error) {
+        console.error(`Error sending update to client ${clientId}:`, error);
+      }
     }
   }
 }

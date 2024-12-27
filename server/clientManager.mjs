@@ -16,9 +16,8 @@ function generateUniqueShortId(length = 12, existingIds) {
 }
 
 export default class ClientManager {
-    constructor(io, gameManager) {
+    constructor(io) {
         this.io = io;
-        this.gameManager = gameManager;
         this.gameSubscriptions = new Map(); // Map game IDs to Sets of client IDs
         this.clientData = new Map(); // clientId => { socketId, gameSheetId }
     }

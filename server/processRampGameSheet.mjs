@@ -1,4 +1,5 @@
-// 
+import { PlayerGoalInfo, GameData, PlayerPenaltyInfo } from './dataModel.mjs';
+
 /**
  * Extracts scoring play data from the provided HTML document.
  *
@@ -50,18 +51,19 @@ export function extractScoringPlaysData(document) {
         const secondAssisterId = secondAssisterIdMatch ? secondAssisterIdMatch[1] : null;
 
         // Create scoring play object
-        scoringPlays.push({
-          teamName,
-          teamId,
-          time,
-          period,
-          scorerName,
-          scorerNumber,
-          firstAssisterName,
-          firstAssisterNumber,
-          secondAssisterName,
-          secondAssisterNumber,
-        });
+        const scoringPlay = new PlayerGoalInfo(); 
+        scoringPlay.teamName = teamName;
+        scoringPlay.teamId = teamId;
+        scoringPlay.time = time;
+        scoringPlay.period = period; 
+        scoringPlay.scorerName = scorerName;
+        scoringPlay.scorerNumber = scorerId; // No scorer number available in the HTML
+        scoringPlay.firstAssisterName = firstAssisterName;
+        scoringPlay.firstAssisterNumber = firstAssisterId; // No assister number available in the HTML
+        scoringPlay.secondAssisterName = secondAssisterName;
+        scoringPlay.secondAssisterNumber = secondAssisterId; // No assister number available in the HTML
+        
+        scoringPlays.push(scoringPlay);
       }
     }
   }
@@ -117,15 +119,16 @@ export function extractPenaltyData(document) {
         const penaltyDescription = penaltyNameMatch ? penaltyNameMatch[1].trim() : null;
 
         // Create scoring play object
-        penaltyData.push({
-          teamName,
-          teamId,
-          time,
-          period,
-          playerName,
-          playerNumber,
-          penaltyDescription,
-        });
+        const penalty = new PlayerPenaltyInfo();
+        penalty.teamName = teamName;
+        penalty.teamId = teamId;
+        penalty.time = time;
+        penalty.period = period;
+        penalty.playerName = playerName;
+        penalty.playerNumber = playerId; // No player number available in the HTML
+        penalty.penaltyDescription = penaltyDescription;
+
+        penaltyData.push(penalty);
       }
     }
   }
@@ -158,24 +161,24 @@ export function getScoreData(document) {
  * @returns {object} An object containing the extracted game information.
  */
 export function getGameInfo(document) {
-  const gameInfo = {};
+  const gameData = new GameData();
 
   const scheduleTable = document.getElementById('tblSchedule');
   if (scheduleTable) {
     const rows = scheduleTable.querySelectorAll('tbody tr');
     if (rows.length > 0) { // Check if there's at least one data row (excluding header)
       const dataRow = rows[0]; // Get the first data row
-      const cells = dataRow.querySelectorAll('td');
+      const columns = dataRow.querySelectorAll('td');
 
-      // Assuming the order of cells is: gameNumber, gameDate, gameLocation, homeTeamName, awayTeamName
-      if (cells.length = 5) {
-        gameInfo.gameNumber = cells[0].textContent.trim();
-        gameInfo.gameDate = cells[1].textContent.trim();
-        gameInfo.gameLocation = cells[2].textContent.trim();
-        gameInfo.homeTeamName = cells[3].textContent.trim();
-        gameInfo.awayTeamName = cells[4].textContent.trim();
+      // Assuming the order of columns is: gameNumber, gameDate, gameLocation, homeTeamName, awayTeamName
+      if (columns.length === 5) {
+        gameData.gameNumber = columns[0].textContent.trim();
+        gameData.gameDate = columns[1].textContent.trim();
+        gameData.gameLocation = columns[2].textContent.trim();
+        gameData.homeTeamName = columns[3].textContent.trim();
+        gameData.awayTeamName = columns[4].textContent.trim();
       } else {
-        console.warn('Unexpected number of cells in schedule table row.');
+        console.warn('Unexpected number of columns in schedule table row.');
       }
     } else {
       console.warn('No data rows found in schedule table.');
@@ -183,6 +186,7 @@ export function getGameInfo(document) {
   } else {
     console.warn('Schedule table not found.');
   }
-
-  return gameInfo;
+  gameData.goals = [];
+  gameData.penalties = [];
+  return gameData;
 }

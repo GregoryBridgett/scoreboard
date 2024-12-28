@@ -1,19 +1,25 @@
 import { handleError } from './handleError.mjs';
+import { fetchDocument } from './fetchRampData.mjs';
 
 /**
  * Retrieves the division ID from the Ringette Ontario website.
  *
- * @param {string} leagueText - The text content of the league list item to search for.
- * @param {string} divisionText - The text content of the division link to search for.
- * @param {Document} document - The HTML document to search within.
+ * @param {string} leagueText - The league name to search for.
+ * @param {string} divisionText - The division name to search for within the league.
  * @returns {string|null} The division ID if found, otherwise null.
  *
- * @throws {Error} If the league list item or division link is not found, or if the href number cannot be extracted.
- *
- * This function first finds the league list item containing `leagueText`, then finds the division link within that list item containing `divisionText`.
- * It extracts the division ID from the link's href attribute.
+ * This function fetches the Ringette Ontario website HTML, then:
+ * 1. Finds the league list item containing `leagueText`.
+ * 2. Finds the division link within that list item containing `divisionText`.
+ * 3. Extracts the division ID from the link's href attribute.
  */
-export function getDivisionId(document, leagueText, divisionText) {
+export async function getDivisionId(leagueText, divisionText) {
+  const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
 
   const leagueListItem = Array.from(document.querySelectorAll('li')).find(li => li.textContent.includes(leagueText)
   );
@@ -35,18 +41,23 @@ export function getDivisionId(document, leagueText, divisionText) {
     handleError(`Could not extract href number from "${href}"`, new Error("Invalid href format"));
     return null;
   }
-  return hrefNumber; 
+  return hrefNumber;
 }
 /**
  * Retrieves the current season ID from the Ringette Ontario website.
  *
- * @param {Document} document - The HTML document to search within.
  * @returns {string|null} The current season ID if found, otherwise null.
  *
  * @throws {Error} If the 'ddlSeason' dropdown element is not found on the page.
  */
-export function getCurrentSeasonId(document) {
+export async function getCurrentSeasonId() {
   // Find the selected option in the ddlSeason dropdown
+  /*const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
   const seasonDropdown = document.querySelector('[name="ddlSeason"]');
 
   if (!seasonDropdown) {
@@ -54,47 +65,60 @@ export function getCurrentSeasonId(document) {
   }
   const selectedSeasonOption = seasonDropdown.querySelector('option[selected]');
   return selectedSeasonOption ? selectedSeasonOption.value : null;
+  */
+  return '10661';
 }
 
 /**
  * Retrieves the list of tournaments and their associated URLs from the Ringette Ontario website.
  *
- * @param {Document} document - The HTML document to search within.
  * @returns {Array<Object>} An array of objects, where each object has 'name' and 'url' properties.
  */
-export function getTournaments(document) {
-    const tournaments = [];
-    const table = document.getElementById('tblPlayers');
+export async function getTournaments() {
+  const document = await fetchDocument();  // Directly use fetchDocument
 
-    if (table) {
-        const rows = table.querySelectorAll('tbody tr');
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
+  const tournaments = [];
+  const table = document.getElementById('tblPlayers');
 
-        rows.forEach(row => {
-            if (!row.classList.contains('cf')) { // Skip header rows
-                const link = row.querySelector('a');
-                if (link) {
-                    tournaments.push({
-                        name: link.textContent.trim(),
-                        url: link.href.replace(/^.*\/\/[^\/]+/, '') // Make URL relative to base URL
-                    });
-                } else {
-                    console.warn('Row without an <a> tag found:', row.outerHTML);
-                }
-            }
-        });
-    } else {
-        handleError('Table with id "tblPlayers" not found', new Error('Table not found'));
-    }
-    return tournaments;
+  if (table) {
+    const rows = table.querySelectorAll('tbody tr');
+
+    rows.forEach(row => {
+      if (!row.classList.contains('cf')) { // Skip header rows
+        const link = row.querySelector('a');
+        if (link) {
+          tournaments.push({
+            name: link.textContent.trim(),
+            url: link.href.replace(/^.*\/\/[^\/]+/, '') // Make URL relative to base URL
+          });
+        } else {
+          console.warn('Row without an <a> tag found:', row.outerHTML);
+        }
+      }
+    });
+  } else {
+    handleError('Table with id "tblPlayers" not found', new Error('Table not found'));
+  }
+  return tournaments;
 }
 
 /**
  * Retrieves an array of league names from the Ringette Ontario website.
  *
- * @param {Document} document - The HTML document to search within.
  * @returns {Array<string>} An array of league names.
  */
-export function getLeagues(document) {
+export async function getLeagues() {
+  const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
+
   const leagueElements = document.querySelectorAll('#navbar-collapse-2 > ul > li > a');
 
   const leagues = [];
@@ -111,10 +135,16 @@ export function getLeagues(document) {
 /**
  * Retrieves an array of division names from the Ringette Ontario website.
  *
- * @param {Document} document - The HTML document to search within.
+ * @param {string} leagueName - The name of the league to get divisions for.
  * @returns {Array<string>} An array of division names.
  */
-export function getDivisionNames(document, leagueName) {
+export async function getDivisionNames(leagueName) {
+  const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
   // Find the league element
   const leagueElement = Array.from(document.querySelectorAll('#navbar-collapse-2 > ul > li > a')).find(
     a => a.textContent.trim() === leagueName
@@ -126,7 +156,7 @@ export function getDivisionNames(document, leagueName) {
   }
 
   // Find the division elements within the league's section
-  const divisionElements = leagueElement.closest('li').querySelectorAll('.panel-group.row h4 a'); 
+  const divisionElements = leagueElement.closest('li').querySelectorAll('.panel-group.row h4 a');
 
   // Extract the division names
   const divisionNames = Array.from(divisionElements).map(a => a.textContent.trim());
@@ -137,12 +167,18 @@ export function getDivisionNames(document, leagueName) {
 /**
  * Retrieves an array of team names for a given division from the Ringette Ontario website.
  *
- * @param {Document} document - The HTML document to search within.
- * @param {string} divisionId - The ID of the division to retrieve teams for.
+ * @param {string} leagueName - The name of the league.
+ * @param {string} divisionName - The name of the division.
  * @returns {Array<string>} An array of team names.
  */
-export function getTeamNames(document, leagueName, divisionName) {
-  const divisionId = getDivisionId(document, leagueName, divisionName);
+export async function getTeamNames(leagueName, divisionName) {
+  const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
+  const divisionId = await getDivisionId(leagueName, divisionName);
   const divisionDiv = document.getElementById(`div_${divisionId}`);
 
   if (!divisionDiv) {
@@ -169,38 +205,45 @@ export function getTeamNames(document, leagueName, divisionName) {
 /**
  * Retrieves the team ID for a given team name within a specific league and division.
  *
- * @param {Document} document - The HTML document to search within.
  * @param {string} leagueName - The name of the league.
  * @param {string} divisionName - The name of the division.
  * @param {string} teamName - The name of the team to find the ID for.
  * @returns {string|null} The team ID if found, otherwise null.
  */
-export function getTeamId(document, leagueName, divisionName, teamName) {
-    const divisionId = getDivisionId(document, leagueName, divisionName);
-    if (!divisionId) {
-        console.error("Division ID not found");
-        return null;
+export async function getTeamId(leagueName, divisionName, teamName) {
+  const document = await fetchDocument();  // Directly use fetchDocument
+
+  if (!document) {
+    console.error('Document not available.');
+    return null; // Or throw an error
+  }
+
+  const divisionId = await getDivisionId(leagueName, divisionName);
+  if (!divisionId) {
+    console.error("Division ID not found");
+    return null;
+  }
+
+  const divisionDiv = document.getElementById(`div_${divisionId}`);
+
+  if (!divisionDiv) {
+    return null;
+  }
+  const secondRow = divisionDiv.querySelectorAll('.row')[1];
+
+  if (!secondRow) return null;
+
+  const teamLinks = secondRow.querySelectorAll('ul li a');
+
+  for (const link of teamLinks) {
+    if (link.textContent.trim() === teamName) {
+      const href = link.getAttribute('href');
+      const teamId = href.substring(href.lastIndexOf('/') + 1);
+      return teamId;
     }
+  }
 
-    const divisionDiv = document.getElementById(`div_${divisionId}`);
-
-    if (!divisionDiv) {
-        return null;
-    }
-    const secondRow = divisionDiv.querySelectorAll('.row')[1];
-
-    if (!secondRow) return null;
-
-    const teamLinks = secondRow.querySelectorAll('ul li a');
-    for (const link of teamLinks) {
-        if (link.textContent.trim() === teamName) {
-            const href = link.getAttribute('href');
-            const teamId = href.substring(href.lastIndexOf('/') + 1);
-            return teamId;
-        }
-    }
-
-    return null; 
+  return null;
 }
 
 /**
@@ -217,14 +260,14 @@ export function getIncompleteGames(gameData, teamName) {
     }
 
     // Filter games where completed is false and team name matches
-    const incompleteGames = gameData.filter(game => 
-      game && 
-      typeof game.completed === 'boolean' && 
+    const incompleteGames = gameData.filter(game =>
+      game &&
+      typeof game.completed === 'boolean' &&
       !game.completed &&
-      (teamName === game.HomeTeamName || teamName === game.AwayTeamName) 
+      (teamName === game.HomeTeamName || teamName === game.AwayTeamName)
     );
 
-   const incompleteGamesFormatted = incompleteGames.map(game => ({
+    const incompleteGamesFormatted = incompleteGames.map(game => ({
       gamesheetID: game.GID,
       date: game.eDate,
       homeTeam: game.HomeTeamName,
@@ -246,6 +289,52 @@ export function getIncompleteGames(gameData, teamName) {
     }
   } catch (error) {
     handleError("Error displaying incomplete games:", error);
+  }
+}
+
+/**
+ * Retrieves the live status of a game based on its gamesheet ID.
+ *
+ * @param {Array<object>} gameData - An array of game objects containing game information.
+ * @param {number} gamesheetId - The ID of the gamesheet to check for live status.
+ * @returns {string|null} The live status ("true" or "false") if found, otherwise null.
+ */
+export async function getLiveStatus(divisionId, gamesheetId) {
+  const gameData = await fetchGameSheetList(divisionId);
+  const game = gameData.find(game => game.GID === gamesheetId);
+
+  if (game && typeof game.livescores === 'string') {
+    return game.livescores;
+  } else {
+    return null;
+  }
+}
+/**
+ * Fetches game table data from the Ringette Ontario API using the provided URL.
+ *
+ * @param {string} url - The API endpoint URL to fetch data from.
+ * @returns {Promise<object|null>} A Promise that resolves with the game table data as a JSON object, or null if an error occurs.
+ *
+ * @throws {Error} If there is an error fetching data from the API or parsing the JSON response.
+ *
+ * This function makes a GET request to the specified API endpoint and parses the JSON response. If an error occurs, it logs the error and returns null.
+ */
+
+export async function fetchGameSheetList(divisionId) {
+  const seasonId = await getCurrentSeasonId();
+  const url = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonId}/0/${divisionId}/0/0/0`;
+  const fetch = await import('node-fetch').then(module => module.default);
+
+  console.log(`Fetching game table data from API: ${url}`);
+  try {
+    const response = await fetch(`${url}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    handleError("Error fetching game table data:", error);
+    return null;
   }
 }
 

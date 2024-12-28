@@ -9,7 +9,7 @@ const startServer = async (port = 3000) => {
   const httpServer = createServer(app); 
   const connectionManager = new ConnectionManager(gameManager);
   const gameManager = new GameManager(connectionManager)
-
+  
   // Read LOG_LEVEL environment variable
   // If logLevel is undefined, default to "info"
   const logLevel = process.env.LOG_LEVEL || "info";

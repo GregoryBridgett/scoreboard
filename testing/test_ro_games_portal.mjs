@@ -1,4 +1,5 @@
-import { fetchDocument, fetchGameSheetList } from '../server/fetchRampData.mjs';
+import { fetchDocument } from '../server/fetchRampData.mjs';
+import { fetchGameSheetList } from '../server/getRampDivisionIds.mjs';
 import { getIncompleteGames } from '../server/getRampDivisionIds.mjs';
 import { getDivisionNames, getDivisionId, getCurrentSeasonId, getTournaments, getLeagues, getTeamNames, getTeamId } from '../server/getRampDivisionIds.mjs';
 import { handleError } from '../server/handleError.mjs';
@@ -20,50 +21,42 @@ async function main() {
       throw new Error("Please provide a text ID as a command line argument.");
     }
 
-    let document = await fetchDocument(url);
-    if (!document) return; // Exit if document retrieval failed
-
-    const leagueNames = getLeagues(document);
+    const leagueNames = await getLeagues();
     console.log("Leagues:",leagueNames);
     
 
 
     const searchText = 'NCRRL';
-    const divisionNames = getDivisionNames(document,searchText);
+    const divisionNames = await getDivisionNames(searchText);
     console.log("Divisions:",divisionNames);
-    const teamNames = getTeamNames(document, searchText,textId);
+    const teamNames = await getTeamNames(searchText,textId);
     console.log("Teams:",teamNames);
-    const divisionId = getDivisionId(document, searchText, textId);
+
+    const divisionId = await getDivisionId(searchText, textId);
     if (!divisionId) return; // Exit if division ID retrieval failed
     console.log("Division ID:", divisionId);
-
-    const divisionUrl = `https://ringetteontario.com/division/0/${divisionId}/games`;
-    document = await fetchDocument(divisionUrl);
-    if (!document) return;
-    const seasonID = getCurrentSeasonId(document);
-    console.log("Season ID:", seasonID);
 
 /*    const tournamentUrl = `http://ringetteontariogames.msa4.rampinteractive.com/tournaments`;
     document = await fetchDocument(tournamentUrl);
     if (!document) return;
-    const tournamentList = getTournaments(document);
+    const tournamentList = getTournaments();
     console.log("Tournaments:", tournamentList);
 */
-    const apiUrl = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonID}/0/${divisionId}/0/0/0`;
-    const gameData = await fetchGameSheetList(apiUrl);
+    const gameData = await fetchGameSheetList(divisionId);
     if (gameData) {
     console.log(gameData);
     getIncompleteGames(gameData, "Ottawa Ice U16A - Falconer");
     }
       const gameUrl = 'https://ringetteontario.com/division/0/20294/gamesheet/1259383';
-      document = await fetchDocument(gameUrl); 
+      const document = await fetchDocument(gameUrl); 
       if (!document) return;
 
       // Ensure document is fully loaded before extracting data
-      const penaltyData = extractPenaltyData(document);
-      const scoringPlays = extractScoringPlaysData(document);
-      const scores = getScoreData(document);
-      console.log("Team Number:",getTeamId(document,searchText,textId,"Ottawa Ice U16A - Falconer"));
+      const penaltyData = await extractPenaltyData(document);
+      const scoringPlays = await extractScoringPlaysData(document);
+      const scores = await getScoreData(document);
+      const teamId = await getTeamId(searchText, textId, 'Ottawa Ice U16A - Falconer');
+      console.log("Team Number:",teamId);
       console.log('Scoring Plays:', scoringPlays);
       console.log('Penalty Data', penaltyData);
       console.log('Scores:', scores);

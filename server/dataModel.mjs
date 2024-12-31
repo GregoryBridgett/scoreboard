@@ -1,5 +1,3 @@
-import logger from './logger.mjs';
-
 // Goal class definition
 export class PlayerGoalInfo {
   constructor() {

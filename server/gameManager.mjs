@@ -109,7 +109,7 @@ export default class GameManager {
 function startGame(divisionId, gamesheetId) {
     const gamesheetUrl = `https://ringetteontario.com/division/0/${divisionId}/gamesheet/${gamesheetId}`;
     const worker = new Worker('./server/gameWorker.mjs', {
-        workerData: { gamesheetUrl },
+        workerData: { gamesheetUrl, gamesheetId },
     });
 
     // Send game state changes to the connectionManager

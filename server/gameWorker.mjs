@@ -22,6 +22,7 @@ import logger from './logger.mjs';
  */
 
 // Initialize game-related data from workerData
+const gamesheetId = workerData.gamesheetId;
 const gamesheetUrl = workerData.gamesheetUrl;
 const updateInterval = workerData.updateInterval || 15000; // Default to 15 seconds if updateInterval is not provided.
 let isUpdating = false; 
@@ -58,8 +59,6 @@ async function startMonitoring() {
     const gameInfo = getGameInfo(document);
 
     Object.assign(previousGameData, gameInfo, {
-      gamesheetId: gamesheetId,
-      divisionId: divisionId,
       homeTeamGoals: 0,
       awayTeamGoals: 0,
       goals: [],

@@ -23,7 +23,7 @@ import logger from './logger.mjs';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 
-class ConnectionManager {
+class ConnectionManager extends EventEmitter {
     /**
      * Manages client connections, subscriptions, and broadcasts score updates using Server-Sent Events (SSE).
      * 

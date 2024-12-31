@@ -68,12 +68,12 @@ export default class GameManager {
     }
 
     /**
-     * Unregisters a scoreboard from a game.
+     * Deregisters a scoreboard from a game.
      * Terminates the worker thread for the game if no more scoreboards are registered.
      * @param {string} gameId - The ID of the game.
      * @param {string} scoreboardId - The ID of the scoreboard.
      */
-    unregisterScoreboard(gameId, scoreboardId) {
+    deregisterScoreboard(gameId, scoreboardId) {
         if (gameScoreboardMapping.has(gameId)) {
             gameScoreboardMapping.get(gameId).delete(scoreboardId);
             if (gameScoreboardMapping.get(gameId).size === 0) {
@@ -85,14 +85,14 @@ export default class GameManager {
 
     /**
      * Handles an idle scoreboard message from the ConnectionManager.
-     * Triggers the unregistration logic for the scoreboard.
+     * Triggers the deregistration logic for the scoreboard.
      * @param {string} scoreboardId - The ID of the idle scoreboard.
      */
     // Handle idle scoreboard message from connectionManager
     handleIdleScoreboard(scoreboardId) {
         for (const [gameId, scoreboards] of gameScoreboardMapping) {
             if (scoreboards.has(scoreboardId)) {
-                this.unregisterScoreboard(gameId, scoreboardId); // Trigger unregistration logic
+                this.deregisterScoreboard(gameId, scoreboardId); // Trigger unregistration logic
                 break;
             }
         }
@@ -134,7 +134,6 @@ function terminateWorker(gameId) {
     if (workerThreads[gameId]) {
         workerThreads[gameId].terminate();
         delete workerThreads[gameId];
-        // ... any other cleanup logic from server.mjs for terminating a worker
         gameTimers.delete(gameId);
         console.log(`Worker terminated for gameId: ${gameId}`);
     }

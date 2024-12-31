@@ -1,10 +1,9 @@
-// *** TODO *** I should only fetch the document once when the server loads and then reuse it.
 // apiRoutes.mjs
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import { getDivisionNames, getIncompleteGames, getLeagues, getTeamNames, getDivisionId, getTournaments, getIncompleteGames, getLiveStatus } from '../server/getRampDivisionIds.mjs';
+import { getDivisionNames, getIncompleteGames, getLeagues, getTeamNames, getDivisionId, getTournaments, getLiveStatus } from '../server/getRampDivisionIds.mjs';
 import { fetchDocument } from '../server/fetchRampData.mjs';
 
 function handleError(message, error) { console.error(message, error); } // Basic error handling
@@ -13,16 +12,16 @@ export default function configureRoutes(app, connectionManager) {
 
     // I. Client and UI Registration (Management)
     app.get('/client/overlay/:scoreboardID', (req, res) => {
-       // const scoreboardID = req.params.scoreboardID;
-        const filePath = path.join(__dirname, '..', 'overlay', 'overlay.html'); 
+        // const scoreboardID = req.params.scoreboardID;
+        const filePath = path.join(__dirname, '..', 'overlay', 'overlay.html');
 
         res.sendFile(filePath, (err) => {
             if (err) {
                 console.error('Error sending file:', err);
-                res.status(404).send('Scoreboard client app not found'); 
+                res.status(404).send('Scoreboard client app not found');
             }
         });
-    });    
+    });
 
     app.post('/client/overlay/:scoreboardID', (req, res) => {
         const scoreboardID = req.params.scoreboardID;
@@ -30,22 +29,22 @@ export default function configureRoutes(app, connectionManager) {
         try {
             // Register the client and get the generated clientID
             const clientID = connectionManager.registerClient(scoreboardID);
-            
+
             res.status(201).json({ message: 'Registered for events', sseEndpoint: `/api/scoreboard/${scoreboardID}/events`, clientID });
         } catch (error) {
             console.error('Error registering client:', error);
             return res.status(500).json({ error: 'Failed to register client' });
         }
-    });    
+    });
 
     app.get('/client/ui/:scoreboardID', (req, res) => {
-       // const scoreboardID = req.params.scoreboardID;
-        const filePath = path.join(__dirname, '..', 'ui', 'ui.html'); 
+        // const scoreboardID = req.params.scoreboardID;
+        const filePath = path.join(__dirname, '..', 'ui', 'ui.html');
 
         res.sendFile(filePath, (err) => {
             if (err) {
                 console.error('Error sending file:', err);
-                res.status(404).send('UI client app not found'); 
+                res.status(404).send('UI client app not found');
             }
         });
     });
@@ -62,15 +61,11 @@ export default function configureRoutes(app, connectionManager) {
     });
 
     // II. Real-time Event Stream (SSE)
-    app.get('/scoreboard/:scoreboardId/events', (req, res) => {
+    app.get('/scoreboard/:scoreboardId/:clientID/events', (req, res) => {
         const scoreboardId = req.params.scoreboardId
-        const clientId = req.query.clientId // Get clientID from the query string
-        
-        if (!clientId) {
-            return res.status(400).send('Missing clientID')
-        }
-    
-        connectionManager.handleSSEConnection(req, res, scoreboardId, clientId) 
+        const clientId = req.params.clientId
+
+        connectionManager.handleSSEConnection(req, res, scoreboardId, clientId)
     });
 
     // III. Schedule Management (Read-Only)
@@ -119,7 +114,7 @@ export default function configureRoutes(app, connectionManager) {
         const leagueName = req.params.leagueName;
         const teamName = req.params.teamName;
 
-         getIncompleteGames(leagueName, divisionName, teamName)
+        getIncompleteGames(leagueName, divisionName, teamName)
             .then(incompleteGames => res.status(200).json(incompleteGames))
             .catch(error => {
                 console.error('Error fetching incomplete games:', error);
@@ -127,36 +122,59 @@ export default function configureRoutes(app, connectionManager) {
             });
     });
 
-    app.get('/schedule/league/:leagueName/division/:divisionName/divisionId', (req,res) => {
+    app.get('/schedule/league/:leagueName/division/:divisionName/divisionId', (req, res) => {
         const leagueName = req.params.leagueName;
         const divisionName = req.params.divisionName;
 
         getDivisionId(leagueName, divisionName)
-        .then(divisionId => res.status(200).json(divisionId))
-        .catch(error => {
-            console.error('Error fetching divisionId:', error);
-            res.status(500).json({ error: 'Failed to fetch divisionId' });
-        });    
+            .then(divisionId => res.status(200).json(divisionId))
+            .catch(error => {
+                console.error('Error fetching divisionId:', error);
+                res.status(500).json({ error: 'Failed to fetch divisionId' });
+            });
     });
 
-    // IV. Gamesheet Management (Read-Only)
+    // IV. Gamesheet Management 
     app.get('/scoreboard/division/:divisionId/gamesheet/:gamesheetID/status', (req, res) => {
         const divisionName = req.params.divisionName;
         const gamesheetId = req.params.gamesheetId;
         const divisionId = getDivisionId(divisionName);
 
         getLiveStatus(divisionId, gamesheetId)
-        .then(liveStatus => res.status(200).json(liveStatus))
-        .catch(error => {
-            console.error('Error fetching live status:', error);
-            res.status(500).json({ error: 'Failed to fetch live status' });
-        });
+            .then(liveStatus => res.status(200).json(liveStatus))
+            .catch(error => {
+                console.error('Error fetching live status:', error);
+                res.status(500).json({ error: 'Failed to fetch live status' });
+            });
+    });
+
+    app.post('/scoreboard/:scoreboardId/division/:divisionId/gamesheet/:gamesheetId', (req, res) => {
+        const scoreboardID = req.params.scoreboardId;
+        const gamesheetID = req.body.gamesheetId; 
+        const divisionID = req.body.divisionId;
+
+        try {
+            // Update the connectionManager or gameManager with the game details
+            connectionManager.updateScoreboardGameDetails(scoreboardID, gamesheetID, divisionID);
+
+            res.status(200).json({ message: 'Game details updated for scoreboard' });
+        } catch (error) {
+            console.error('Error updating game details:', error);
+            res.status(500).json({ error: 'Failed to update game details' });
+        }
     });
 
     // V. Scoreboard Control (Write Operations)
     app.put('/scoreboard/:scoreboardID/score/:homeaway/:score', (req, res) => {
-        // ... Implementation using connectionManager to set the home score
-        res.status(200).send('Home score updated'); // Placeholder response
+        const scoreboardID = req.params.scoreboardID;
+
+        try {
+            connectionManager.broadcastGameUpdate(scoreboardID);
+            res.status(200).json({ message: 'Score update broadcasted' });
+        } catch (error) {
+            console.error('Error updating score:', error);
+            res.status(500).json({ error: 'Failed to update score' });
+        }
     });
 
     app.post('/scoreboard/:scoreboardID/gametimer/:enable', (req, res) => { /* ... */ });

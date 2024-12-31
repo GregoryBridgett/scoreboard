@@ -1,19 +1,19 @@
+***TODO*** ConnectionManager should only register with GameManager after it receives a gamesheetId and divisionId ***/
+
 /**
- * @file Manages client connections, subscriptions, and game updates using Server-Sent Events (SSE).
+ * @file Manages client connections, subscriptions, and scoreboard updates using Server-Sent Events (SSE).
  *
  * The `ConnectionManager` is a central component responsible for:
  *
  * - **Client Registration:** Registers new clients, assigning them unique IDs and establishing SSE connections.
  * - **Subscriptions:**  Manages client subscriptions to specific scoreboards.
- * - **Game Updates:** Broadcasts game updates to subscribed clients via SSE.
- * - **Heartbeats:** Handles client heartbeats to monitor connections and detect idle clients.
+ * - **Scoreboard updates:** Broadcasts scoreboard updates to subscribed clients via SSE.
  * - **Idle Scoreboard Detection:**  Detects idle scoreboards (those with no active clients) and notifies the `GameManager`.
  *
  * **Interaction with `GameManager`:**
  *
- * - The `ConnectionManager` receives game updates from the `GameManager` and broadcasts them to the appropriate clients.
+ * - The `ConnectionManager` receives scoreboard updates from the `GameManager` and broadcasts them to the appropriate clients.
  * - It notifies the `GameManager` when scoreboards become idle, allowing the `GameManager` to terminate worker threads.
- *
  * **Interaction with Clients:**
  *
  * - Clients connect to the `ConnectionManager` via SSE.
@@ -26,32 +26,29 @@ import { v4 as uuidv4 } from 'uuid';
 
 class ConnectionManager extends EventEmitter {
     /**
-     * Manages client connections, subscriptions, and broadcasts game updates using Server-Sent Events (SSE).
+     * Manages client connections, subscriptions, and broadcasts score updates using Server-Sent Events (SSE).
      * 
      * This class is responsible for:
      * - Registering and removing clients.
-     * - Maintaining mappings between clients, games, and scoreboards.
-     * - Sending game updates to subscribed clients.
-     * - Handling client heartbeats and detecting idle scoreboards.
+     * - Maintaining mappings between clients, and scoreboards.
+     * - Sending score updates to subscribed clients.
      * 
      * @param {GameManager} gameManager - An instance of the GameManager class.
      */
     constructor(gameManager) {
         super();
         this.gameManager = gameManager;
-        /** @type {Map<string, { res: import('http').ServerResponse, gameId: string }>} */
-        this.clients = new Map(); 
+        /** @type {Map<string, { res: import('http').ServerResponse, scoreboardId: string }>} */
+        this.clients = new Map();
         /** @type {Map<string, Set<string>>} */
-        this.clientGameSubscriptions = new Map(); 
-        /** @type {Map<string, number>} */
-        this.clientLastMessageIds = new Map(); 
+        this.clientScoreboardSubscriptions = new Map();
     }
 
     /**
-     * Registers a client to a scoreboard and starts sending game updates.
+     * Registers a client to a scoreboard and starts sending score updates.
      * 
      * Generates a unique client ID, sets up the SSE connection, and adds
-     * the client to the clientGameSubscriptions map.
+     * the client to the clientScoreboardSubscriptions map.
      * 
      * @param {string} scoreboardId - The ID of the scoreboard the client is subscribing to.
      * @param {import('http').ServerResponse} res - The response object of the incoming request.
@@ -62,7 +59,7 @@ class ConnectionManager extends EventEmitter {
         const clientId = uuidv4(); // Generate a unique client ID
 
         // Check if a client with the generated ID already exists (unlikely, but good practice)
-        if (this.clients.has(clientId)) { 
+        if (this.clients.has(clientId)) {
             console.warn(`Client ${clientId} already exists (collision). Generating a new one.`);
             return this.registerClient(scoreboardId, res); // Retry with a new ID
         }
@@ -73,19 +70,23 @@ class ConnectionManager extends EventEmitter {
             'Connection': 'keep-alive',
         });
 
-        this.clients.set(clientId, { res, gameId: scoreboardId });
+        this.clients.set(clientId, { res, scoreboardId: scoreboardId });
 
-        if (!this.clientGameSubscriptions.has(clientId)) {
-            this.clientGameSubscriptions.set(clientId, new Set());
+        if (!this.clientScoreboardSubscriptions.has(clientId)) {
+            this.clientScoreboardSubscriptions.set(clientId, new Set());
         }
-        this.clientGameSubscriptions.get(clientId).add(scoreboardId);
+        this.clientScoreboardSubscriptions.get(clientId).add(scoreboardId);
+
+        // If this is the first client subscribing to this scoreboard, register it 
+        if (this.getSubscriptionCountForScoreboard(scoreboardId) === 1) {
+            this.gameManager.registerScoreboard(scoreboardId);
+        }
 
         res.on('close', () => {
             this.removeClient(clientId);
         });
 
-
-        this.sendGameUpdate(clientId);
+        this.sendScoreboardUpdate(clientId);
         console.log(`Client ${clientId} connected to scoreboard ${scoreboardId}`);
     }
 
@@ -97,32 +98,38 @@ class ConnectionManager extends EventEmitter {
      */
     removeClient(clientId) {
         if (this.clients.has(clientId)) {
-            const { res, gameId } = this.clients.get(clientId);
+            const { res, scoreboardId } = this.clients.get(clientId);
             res.end();
             this.clients.delete(clientId);
 
-            if (this.clientGameSubscriptions.has(clientId)) {
-                this.clientGameSubscriptions.get(clientId).delete(gameId);
-                if (this.clientGameSubscriptions.get(clientId).size === 0) {
-                    this.clientGameSubscriptions.delete(clientId);
+            if (this.clientScoreboardSubscriptions.has(clientId)) {
+                this.clientScoreboardSubscriptions.get(clientId).delete(scoreboardId);
+                if (this.clientScoreboardSubscriptions.get(clientId).size === 0) {
+                    this.clientScoreboardSubscriptions.delete(clientId);
                 }
             }
-            console.log(`Client ${clientId} disconnected from scoreboard ${gameId}`);
+
+            // If this was the last client for this scoreboard, deregister it
+            if (this.getSubscriptionCountForScoreboard(scoreboardId) === 0) {
+                this.gameManager.deregisterScoreboard(scoreboardId);
+            }
+
+            console.log(`Client ${clientId} disconnected from scoreboard ${scoreboardId}`);
         } else {
             console.warn(`Client ${clientId} not found for removal`);
         }
     }
 
     /**
-     * Sends a game update to a specific client.
+     * Sends a scoreboard update to a specific client.
      * 
      * @param {string} clientId - The ID of the client to send the update to.
      * @returns {void}
      */
-    sendGameUpdate(clientId) {
+    sendScoreboardUpdate(clientId) {
         try {
-            const { gameId, res } = this.clients.get(clientId);
-            const gameState = this.gameManager.getGameStateForScoreboard(gameId); 
+            const { scoreboardId, res } = this.clients.get(clientId);
+            const gameState = this.gameManager.getGameStateForScoreboard(scoreboardId);
             const data = `data: ${JSON.stringify(gameState)}\n\n`;
             res.write(data);
         } catch (error) {
@@ -131,70 +138,52 @@ class ConnectionManager extends EventEmitter {
     }
 
     /**
-     * Broadcasts a game update to all clients subscribed to a specific scoreboard.
+     * Broadcasts a scoreboard update to all clients subscribed to a specific scoreboard.
      * 
      * @param {string} scoreboardId - The ID of the scoreboard to broadcast the update to.
      * @returns {void}
      */
-    broadcastGameUpdate(scoreboardId) {
-        // Get clients subscribed to the scoreboard
-        const clients = this.gameManager.getClientsForScoreboard(scoreboardId); 
-        if (clients) {
-            for (const clientId of clients) {
-                try {
-                    this.sendGameUpdate(clientId);
-                } catch (error) {
-                    console.error(`Error sending update to client ${clientId}:`, error);
-                    // Consider removing the client if it's disconnected
-                    this.removeClient(clientId);
+    broadcastScoreboardUpdate(scoreboardId) {
+        try {
+            // Iterate over all client subscriptions
+            for (const [clientId, subscribedScoreboards] of this.clientScoreboardSubscriptions) {
+                // If the client is subscribed to the scoreboard, send the update
+                if (subscribedScoreboards.has(scoreboardId)) {
+                    this.sendScoreboardUpdate(clientId);
                 }
             }
+        } catch (error) {
+            console.error('Error broadcasting game update:', error);
         }
     }
 
     /**
-     * Handles client heartbeats to track activity and detect idle scoreboards.
+     * Gets the number of clients subscribed to a specific scoreboard.
      * 
-     * @param {string} clientId - The ID of the client sending the heartbeat.
-     * @param {number} lastReceivedMessageId - The last message ID received by the client.
-     * @returns {void}
-     */
-    handleHeartbeat(clientId, lastReceivedMessageId) {
-        this.clientLastMessageIds.set(clientId, lastReceivedMessageId);
-
-        // Check for idle scoreboards
-        const gameId = this.getClientGameId(clientId); 
-        if (this.getSubscriptionCountForGame(gameId) === 0) {
-            this.gameManager.handleIdleScoreboard(gameId); 
-        }
-    }
-
-    /**
-     * Gets the last message ID received by a client.
-     * 
-     * @param {string} clientId - The ID of the client.
-     * @returns {number} The last received message ID, or 0 if not found.
-     */
-    getClientLastMessageId(clientId) {
-        return this.clientLastMessageIds.get(clientId) || 0; 
-    }
-
-    /**
-     * Gets the number of clients subscribed to a specific game.
-     * 
-     * @param {string} gameId - The ID of the game.
+     * @param {string} scoreboardId - The ID of the scoreboard.
      * @returns {number} The number of subscribed clients.
      */
-    getSubscriptionCountForGame(gameId) {
+    getSubscriptionCountForScoreboard(scoreboardId) {
         let count = 0;
-        for (const clients of this.clientGameSubscriptions.values()) {
-            if (clients.has(gameId)) {
+        for (const clients of this.clientScoreboardSubscriptions.values()) {
+            if (clients.has(scoreboardId)) {
                 count++;
             }
         }
         return count;
     }
-    
+
+    /**
+     * Gets the scoreboard ID that a client is subscribed to.
+     * 
+     * @param {string} clientId - The ID of the client.
+     * @returns {string | undefined} The scoreboard ID, or undefined if the client is not subscribed to any scoreboard.
+     */
+    getClientScoreboardId(clientId) {
+        const clientData = this.clients.get(clientId);
+        return clientData ? clientData.scoreboardId : undefined;
+    }
+
     /**
      * Handles a new SSE connection from a client.
      * 
@@ -212,20 +201,20 @@ class ConnectionManager extends EventEmitter {
             console.error(`Client ${clientId} not found for SSE connection`);
             return res.status(404).send('Client not found');
         }
-    
+
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
         });
-    
+
         // Send an initial update
-        this.sendGameUpdate(clientId);
-    
+        this.sendScoreboardUpdate(clientId);
+
         res.on('close', () => {
             this.removeClient(clientId);
         });
-    
+
         console.log(`Client ${clientId} connected to SSE stream for scoreboard ${scoreboardId}`);
     }
 }

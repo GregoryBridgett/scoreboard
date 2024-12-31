@@ -17,10 +17,11 @@
 
 // gameManager.mjs
 import { Worker } from 'worker_threads';
+import logger from './logger.mjs';
 
 const workerThreads = {};
 const gameTimers = new Map();
-const gameScoreboardMapping = new Map(); // gameId => Set<scoreboardId>
+const gameScoreboardMapping = new Map(); // gamesheetId => Set<scoreboardId>
 
 /**
  * Class representing the GameManager.
@@ -41,13 +42,13 @@ export default class GameManager {
 
     /**
      * Get the current game state for a given game ID.
-     * @param {string} gameId - The ID of the game.
+     * @param {string} gamesheetId - The ID of the game.
      * @returns {object} - The game state object.
      */
-    getGameState(gameId) {
+    getGameState(gamesheetId) {
         // Replace with your actual game state logic
         return {
-            gameId: gameId,
+            gamesheetId: gamesheetId,
             score: { team1: 0, team2: 0 },
             status: 'in progress',
         };
@@ -56,29 +57,29 @@ export default class GameManager {
     /**
      * Registers a scoreboard with a game.
      * Starts a new worker thread for the game if it's the first scoreboard registered.
-     * @param {string} gameId - The ID of the game.
+     * @param {string} gamesheetId - The ID of the gamesheet.
      * @param {string} scoreboardId - The ID of the scoreboard.
      */
-    registerScoreboard(gameId, scoreboardId) {
-        if (!gameScoreboardMapping.has(gameId)) {
-            gameScoreboardMapping.set(gameId, new Set());
-            startGame(gameId); // Start worker thread if it's the first scoreboard for this game
+    registerScoreboard(scoreboardId, divisionId, gamesheetId) {
+        if (!gameScoreboardMapping.has(gamesheetId)) {
+            gameScoreboardMapping.set(gamesheetId, new Set());
+            startGame(divisionId, gamesheetId); // Start worker thread if it's the first scoreboard for this game
         }
-        gameScoreboardMapping.get(gameId).add(scoreboardId);
+        gameScoreboardMapping.get(gamesheetId).add(scoreboardId);
     }
 
     /**
      * Deregisters a scoreboard from a game.
      * Terminates the worker thread for the game if no more scoreboards are registered.
-     * @param {string} gameId - The ID of the game.
+     * @param {string} gamesheetId - The ID of the gamesheet.
      * @param {string} scoreboardId - The ID of the scoreboard.
      */
-    deregisterScoreboard(gameId, scoreboardId) {
-        if (gameScoreboardMapping.has(gameId)) {
-            gameScoreboardMapping.get(gameId).delete(scoreboardId);
-            if (gameScoreboardMapping.get(gameId).size === 0) {
-                terminateWorker(gameId); // Terminate worker if no more scoreboards for this game
-                gameScoreboardMapping.delete(gameId);
+    deregisterScoreboard(gamesheetId, scoreboardId) {
+        if (gameScoreboardMapping.has(gamesheetId)) {
+            gameScoreboardMapping.get(gamesheetId).delete(scoreboardId);
+            if (gameScoreboardMapping.get(gamesheetId).size === 0) {
+                terminateWorker(gamesheetId); // Terminate worker if no more scoreboards for this game
+                gameScoreboardMapping.delete(gamesheetId);
             }
         }
     }
@@ -90,9 +91,9 @@ export default class GameManager {
      */
     // Handle idle scoreboard message from connectionManager
     handleIdleScoreboard(scoreboardId) {
-        for (const [gameId, scoreboards] of gameScoreboardMapping) {
+        for (const [gamesheetId, scoreboards] of gameScoreboardMapping) {
             if (scoreboards.has(scoreboardId)) {
-                this.deregisterScoreboard(gameId, scoreboardId); // Trigger unregistration logic
+                this.deregisterScoreboard(gamesheetId, scoreboardId); // Trigger unregistration logic
                 break;
             }
         }
@@ -101,50 +102,52 @@ export default class GameManager {
 
 /**
  * Starts a new worker thread for a game.
- * @param {string} gameId - The ID of the game to start.
+ * @param {string} gamesheetId - The ID of the gamesheet to start.
+ * @param {string} divisionId - The divisionId where the gamesheet can be found.
  * @returns {Worker} - The worker thread instance.
  */
-function startGame(gameId) {
+function startGame(divisionId, gamesheetId) {
+    const gamesheetUrl = `https://ringetteontario.com/division/0/${divisionId}/gamesheet/${gamesheetId}`;
     const worker = new Worker('./server/gameWorker.mjs', {
-        workerData: { gameId },
+        workerData: { gamesheetUrl },
     });
 
     // Send game state changes to the connectionManager
     worker.on('message', (message) => {
         if (message.type === 'gameDataUpdate') {
             // Get all scoreboards for this game
-            const scoreboards = gameScoreboardMapping.get(message.data.gameId);
+            const scoreboards = gameScoreboardMapping.get(message.data.gamesheetId);
 
             // Send update to connectionManager to broadcast to clients
-            this.connectionManager.broadcastGameUpdate(message.data.gameId, message.data, scoreboards);
+            this.connectionManager.broadcastGameUpdate(message.data.gamesheetId, message.data, scoreboards);
         }
 
         // ... other message handling logic from server.mjs for this worker
     });
 
-    workerThreads[gameId] = worker;
+    workerThreads[gamesheetId] = worker;
     return worker;
 }
 
 /**
  * Terminates the worker thread for a game.
- * @param {string} gameId - The ID of the game to terminate.
+ * @param {string} gamesheetId - The ID of the game to terminate.
  */
-function terminateWorker(gameId) {
-    if (workerThreads[gameId]) {
-        workerThreads[gameId].terminate();
-        delete workerThreads[gameId];
-        gameTimers.delete(gameId);
-        console.log(`Worker terminated for gameId: ${gameId}`);
+function terminateWorker(gamesheetId) {
+    if (workerThreads[gamesheetId]) {
+        workerThreads[gamesheetId].terminate();
+        delete workerThreads[gamesheetId];
+        gameTimers.delete(gamesheetId);
+        logger.info({ module: 'gameManager', function: 'terminateWorker', message: `Worker terminated for gamesheetId: ${gamesheetId}` });
     }
 }
 
 /**
  * Forces an update for a game.
- * @param {string} gameId - The ID of the game to update.
+ * @param {string} gamesheetId - The ID of the game to update.
  */
-function forceUpdate(gameId) {
-    if (gameId && workerThreads[gameId]) {
-        workerThreads[gameId].postMessage({ type: 'forceUpdate' });
+function forceUpdate(gamesheetId) {
+    if (gamesheetId && workerThreads[gamesheetId]) {
+        workerThreads[gamesheetId].postMessage({ type: 'forceUpdate' });
     }
 }

@@ -1,8 +1,9 @@
 import { parentPort, workerData } from 'worker_threads';
-import { fetchDocument } from './fetchRampData.mjs';
+import { fetchDocument, getLiveStatus } from './fetchRampData.mjs';
 import { getGameInfo, extractPenaltyData, extractScoringPlaysData, getScoreData } from './processRampGameSheet.mjs';
 import * as dataModel from './dataModel.mjs';
 import { isEqual } from 'lodash-es';
+import logger from './logger.mjs';
 /**
  * This worker thread monitors a Ramp online gamesheet and reports changes in game data to the main thread. 
  * 
@@ -21,100 +22,112 @@ import { isEqual } from 'lodash-es';
  */
 
 // Initialize game-related data from workerData
-const gamesheetId = workerData.gamesheetId;
-const divisionId = workerData.divisionId;
 const gamesheetUrl = workerData.gamesheetUrl;
 const updateInterval = workerData.updateInterval || 15000; // Default to 15 seconds if updateInterval is not provided.
+let isUpdating = false; 
 
-// Initialize game data variables
-let previousGameData = new dataModel.GameData(); // Will hold the previous state of the game data for comparison
+async function startMonitoring() {
+  let previousGameData = new dataModel.GameData();
 
-// Initial scraping
-try {
-  (async () => {
-    let document; // Declare document with let for reassignment and nullification
-
+  // First wait until the game goes live
+  while (true) {
     try {
-      document = await fetchDocument(gamesheetUrl);
-      // Validate document.
-      if (!document) {
-        // Handle case where document is not correctly populated
-        console.error("Failed to fetch or parse the document.");
-        return; // Or throw an error
+      const isLive = await getLiveStatus(gamesheetUrl);
+      if (isLive) {
+        logger.info({ module: 'gameWorker', function: 'startMonitoring' }, 'Gamesheet is live. Starting monitoring.');
+        break; 
+      } else {
+        logger.info({ module: 'gameWorker', function: 'startMonitoring' }, 'Gamesheet is not live. Waiting...');
+        await new Promise(resolve => setTimeout(resolve, updateInterval)); 
       }
-
-      const gameInfo = getGameInfo(document);
-
-      // Initialize previousGameData with the initial scrape
-      Object.assign(previousGameData, gameInfo, {
-        gamesheetId: gamesheetId,
-        divisionId: divisionId,
-        homeTeamGoals: 0, 
-        awayTeamGoals: 0,
-        goals: [],
-        penalties: []
-      });
-
-      parentPort.postMessage({ type: 'gameDataUpdate', data: previousGameData });
-
     } catch (error) {
-      console.error('Error during initial scraping:', error);
-    } finally {
-      document = null; // Nullify document after use
+      logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error checking live status');
+      await new Promise(resolve => setTimeout(resolve, updateInterval));
     }
-  })();
+  }
 
-  // Periodic updates
+  // Then get all of the initial data
+  try {
+    let document = await fetchDocument(gamesheetUrl);
+    
+    if (!document) {
+      logger.error({ module: 'gameWorker', function: 'startMonitoring' }, "Failed to fetch or parse the document.");
+      return;
+    }
+
+    const gameInfo = getGameInfo(document);
+
+    Object.assign(previousGameData, gameInfo, {
+      gamesheetId: gamesheetId,
+      divisionId: divisionId,
+      homeTeamGoals: 0,
+      awayTeamGoals: 0,
+      goals: [],
+      penalties: []
+    });
+
+    parentPort.postMessage({ type: 'gameDataUpdate', data: previousGameData });
+    document = null;
+
+  } catch (error) {
+    logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error during initial scraping');
+  }
+
+  // Then perform periodic web scraping
   setInterval(async () => {
-    let document; // Declare document with let for reassignment and nullification
+    if (!isUpdating) {
+      isUpdating = true; 
+      let document;
 
-    try {
-      document = await fetchDocument(gamesheetUrl);
-      
-      const newGoals = extractScoringPlaysData(document);
-      const newPenalties = extractPenaltyData(document);
-      const newScoreData = getScoreData(document)
+      try {
+        document = await fetchDocument(gamesheetUrl);
+        
+        const newGoals = extractScoringPlaysData(document);
+        const newPenalties = extractPenaltyData(document);
+        const newScoreData = getScoreData(document);
 
-      const changedData = {};
+        const changedData = {};
 
-      // Check for changes in goals and penalties
-      if (!isEqual(previousGameData.goals, newGoals)) {
+        if (!isEqual(previousGameData.goals, newGoals)) {
           changedData.goals = newGoals;
-      }
-      if (!isEqual(previousGameData.penalties, newPenalties)) {
+        }
+        if (!isEqual(previousGameData.penalties, newPenalties)) {
           changedData.penalties = newPenalties;
-      }
+        }
 
-      // Check for score changes
-      if (previousGameData.awayTeamGoals !== newScoreData.awayTeamGoals) {
+        if (previousGameData.awayTeamGoals !== newScoreData.awayTeamGoals) {
           changedData.awayTeamGoals = newScoreData.awayTeamGoals;
-      }
-      if (previousGameData.homeTeamGoals !== newScoreData.homeTeamGoals) {
+        }
+        if (previousGameData.homeTeamGoals !== newScoreData.homeTeamGoals) {
           changedData.homeTeamGoals = newScoreData.homeTeamGoals;
-      }
+        }
 
-      // If there are changes, send gameDataUpdate message with only the changes
-      if (Object.keys(changedData).length > 0) {
-        parentPort.postMessage({
-          type: 'gameDataUpdate',
-          gameId: gamesheetId,          
-          data: changedData
-        });
-        // Update previousGameData with the new values
-        previousGameData.goals = [...newGoals];
-        previousGameData.penalties = [...newPenalties];
-        previousGameData.awayTeamGoals = newScoreData.awayTeamGoals;
-        previousGameData.homeTeamGoals = newScoreData.homeTeamGoals;
-      }
+        if (Object.keys(changedData).length > 0) {
+          parentPort.postMessage({
+            type: 'gameDataUpdate',
+            gameId: gamesheetId,
+            data: changedData
+          });
 
-    } catch (error) {
-      console.error('Error during periodic update:', error);
-      // parentPort.postMessage({ type: 'gameDataError', gamesheetId: gamesheetId, error: error.message }); // Send error message to main thread if needed
-    } finally {
-      document = null; // Nullify document after use to aid garbage collection
+          previousGameData.goals = [...newGoals];
+          previousGameData.penalties = [...newPenalties];
+          previousGameData.awayTeamGoals = newScoreData.awayTeamGoals;
+          previousGameData.homeTeamGoals = newScoreData.homeTeamGoals;
+        }
+
+      } catch (error) {
+        logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error during periodic update');
+      } finally {
+        document = null;
+        isUpdating = false; 
+      }
     }
   }, updateInterval);
 }
-catch (error) {
-  console.error('Worker thread error:', error);
+
+// Start the monitoring process
+try {
+  startMonitoring();
+} catch (error) {
+  logger.error({ module: 'gameWorker', error }, 'Worker thread error');
 }

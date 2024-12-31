@@ -1,5 +1,3 @@
-***TODO*** ConnectionManager should only register with GameManager after it receives a gamesheetId and divisionId ***/
-
 /**
  * @file Manages client connections, subscriptions, and scoreboard updates using Server-Sent Events (SSE).
  *
@@ -14,17 +12,18 @@
  *
  * - The `ConnectionManager` receives scoreboard updates from the `GameManager` and broadcasts them to the appropriate clients.
  * - It notifies the `GameManager` when scoreboards become idle, allowing the `GameManager` to terminate worker threads.
+ *
  * **Interaction with Clients:**
  *
  * - Clients connect to the `ConnectionManager` via SSE.
  * - Clients register for specific scoreboards using the API.
- * - Clients send periodic heartbeats to maintain their connection status.
  */
 // connectionManager.mjs
+import logger from './logger.mjs';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 
-class ConnectionManager extends EventEmitter {
+class ConnectionManager {
     /**
      * Manages client connections, subscriptions, and broadcasts score updates using Server-Sent Events (SSE).
      * 
@@ -36,7 +35,7 @@ class ConnectionManager extends EventEmitter {
      * @param {GameManager} gameManager - An instance of the GameManager class.
      */
     constructor(gameManager) {
-        super();
+        super(); 
         this.gameManager = gameManager;
         /** @type {Map<string, { res: import('http').ServerResponse, scoreboardId: string }>} */
         this.clients = new Map();
@@ -60,7 +59,7 @@ class ConnectionManager extends EventEmitter {
 
         // Check if a client with the generated ID already exists (unlikely, but good practice)
         if (this.clients.has(clientId)) {
-            console.warn(`Client ${clientId} already exists (collision). Generating a new one.`);
+            logger.warn({ module: 'ConnectionManager', function: 'registerClient', message: `Client ${clientId} already exists (collision). Generating a new one.` });
             return this.registerClient(scoreboardId, res); // Retry with a new ID
         }
 
@@ -77,17 +76,12 @@ class ConnectionManager extends EventEmitter {
         }
         this.clientScoreboardSubscriptions.get(clientId).add(scoreboardId);
 
-        // If this is the first client subscribing to this scoreboard, register it 
-        if (this.getSubscriptionCountForScoreboard(scoreboardId) === 1) {
-            this.gameManager.registerScoreboard(scoreboardId);
-        }
-
         res.on('close', () => {
             this.removeClient(clientId);
         });
 
-        this.sendScoreboardUpdate(clientId);
-        console.log(`Client ${clientId} connected to scoreboard ${scoreboardId}`);
+        this.sendScoreboardUpdate(clientId); 
+        logger.info({ module: 'ConnectionManager', function: 'registerClient', message: `Client ${clientId} connected to scoreboard ${scoreboardId}` });
     }
 
     /**
@@ -114,9 +108,9 @@ class ConnectionManager extends EventEmitter {
                 this.gameManager.deregisterScoreboard(scoreboardId);
             }
 
-            console.log(`Client ${clientId} disconnected from scoreboard ${scoreboardId}`);
+            logger.info({ module: 'ConnectionManager', function: 'removeClient', message: `Client ${clientId} disconnected from scoreboard ${scoreboardId}` });
         } else {
-            console.warn(`Client ${clientId} not found for removal`);
+            logger.warn({ module: 'ConnectionManager', function: 'removeClient', message: `Client ${clientId} not found for removal` });
         }
     }
 
@@ -133,7 +127,7 @@ class ConnectionManager extends EventEmitter {
             const data = `data: ${JSON.stringify(gameState)}\n\n`;
             res.write(data);
         } catch (error) {
-            console.error('Error sending game update:', error);
+            logger.error({ module: 'ConnectionManager', function: 'sendScoreboardUpdate', message: 'Error sending game update', error: error });
         }
     }
 
@@ -153,7 +147,7 @@ class ConnectionManager extends EventEmitter {
                 }
             }
         } catch (error) {
-            console.error('Error broadcasting game update:', error);
+            logger.error({ module: 'ConnectionManager', function: 'broadcastScoreboardUpdate', message: 'Error broadcasting game update', error: error });
         }
     }
 
@@ -171,6 +165,14 @@ class ConnectionManager extends EventEmitter {
             }
         }
         return count;
+    }
+
+    liveScoreboardGameDetails(scoreboardId, divisionId, gamesheetId)
+    {
+        // If this is the first client subscribing to this scoreboard, register it 
+        if (this.getSubscriptionCountForScoreboard(scoreboardId) === 1) {
+            this.gameManager.registerScoreboard(scoreboardId, divisionId, gamesheetId);
+        }        
     }
 
     /**
@@ -198,7 +200,7 @@ class ConnectionManager extends EventEmitter {
      */
     handleSSEConnection(req, res, scoreboardId, clientId) {
         if (!this.clients.has(clientId)) {
-            console.error(`Client ${clientId} not found for SSE connection`);
+            logger.error({ module: 'ConnectionManager', function: 'handleSSEConnection', message: `Client ${clientId} not found for SSE connection` });
             return res.status(404).send('Client not found');
         }
 
@@ -215,7 +217,7 @@ class ConnectionManager extends EventEmitter {
             this.removeClient(clientId);
         });
 
-        console.log(`Client ${clientId} connected to SSE stream for scoreboard ${scoreboardId}`);
+        logger.info({ module: 'ConnectionManager', function: 'handleSSEConnection', message: `Client ${clientId} connected to SSE stream for scoreboard ${scoreboardId}` });
     }
 }
 

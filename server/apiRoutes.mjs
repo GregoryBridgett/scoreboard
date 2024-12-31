@@ -4,9 +4,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { getDivisionNames, getIncompleteGames, getLeagues, getTeamNames, getDivisionId, getTournaments, getLiveStatus } from '../server/getRampDivisionIds.mjs';
+import { logger } from '../server/server.mjs'; 
 import { fetchDocument } from '../server/fetchRampData.mjs';
 
-function handleError(message, error) { console.error(message, error); } // Basic error handling
+function handleError(message, error) { logger.error({ module: 'apiRoutes', function: 'handleError', message, error }); } // Basic error handling
 
 export default function configureRoutes(app, connectionManager) {
 
@@ -17,7 +18,7 @@ export default function configureRoutes(app, connectionManager) {
 
         res.sendFile(filePath, (err) => {
             if (err) {
-                console.error('Error sending file:', err);
+                logger.error({ module: 'apiRoutes', function: 'app.get_client_overlay', message: 'Error sending file:', error: err });
                 res.status(404).send('Scoreboard client app not found');
             }
         });
@@ -32,7 +33,7 @@ export default function configureRoutes(app, connectionManager) {
 
             res.status(201).json({ message: 'Registered for events', sseEndpoint: `/api/scoreboard/${scoreboardID}/events`, clientID });
         } catch (error) {
-            console.error('Error registering client:', error);
+            logger.error({ module: 'apiRoutes', function: 'app.post_client_overlay', message: 'Error registering client:', error });
             return res.status(500).json({ error: 'Failed to register client' });
         }
     });
@@ -43,7 +44,7 @@ export default function configureRoutes(app, connectionManager) {
 
         res.sendFile(filePath, (err) => {
             if (err) {
-                console.error('Error sending file:', err);
+                logger.error({ module: 'apiRoutes', function: 'app.get_client_ui', message: 'Error sending file:', error: err });
                 res.status(404).send('UI client app not found');
             }
         });
@@ -55,7 +56,7 @@ export default function configureRoutes(app, connectionManager) {
             const clientID = connectionManager.registerClient(scoreboardID);
             res.status(201).json({ message: 'Registered for events', sseEndpoint: `/api/scoreboard/${scoreboardID}/events`, clientID });
         } catch (error) {
-            console.error('Error registering client:', error);
+            logger.error({ module: 'apiRoutes', function: 'app.post_client_ui', message: 'Error registering client:', error });
             return res.status(500).json({ error: 'Failed to register client' });
         }
     });
@@ -81,7 +82,7 @@ export default function configureRoutes(app, connectionManager) {
         getLeagues()
             .then(leagues => res.status(200).json(leagues))
             .catch(error => {
-                console.error('Error fetching leagues:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_schedule_leagues', message: 'Error fetching leagues:', error });
                 res.status(500).json({ error: 'Failed to fetch leagues' });
             });
     });
@@ -92,7 +93,7 @@ export default function configureRoutes(app, connectionManager) {
         getDivisionNames(leagueName)
             .then(divisionNames => res.status(200).json(divisionNames))
             .catch(error => {
-                console.error('Error fetching division names:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_schedule_leagues_divisions', message: 'Error fetching division names:', error });
                 res.status(500).json({ error: 'Failed to fetch division names' });
             });
     });
@@ -104,7 +105,7 @@ export default function configureRoutes(app, connectionManager) {
         getTeamNames(leagueName, divisionName)
             .then(teamNames => res.status(200).json(teamNames))
             .catch(error => {
-                console.error('Error fetching team names:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_schedule_leagues_divisions_teams', message: 'Error fetching team names:', error });
                 res.status(500).json({ error: 'Failed to fetch team names' });
             });
     });
@@ -117,7 +118,7 @@ export default function configureRoutes(app, connectionManager) {
         getIncompleteGames(leagueName, divisionName, teamName)
             .then(incompleteGames => res.status(200).json(incompleteGames))
             .catch(error => {
-                console.error('Error fetching incomplete games:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_schedule_leagues_divisions_team_games', message: 'Error fetching incomplete games:', error });
                 res.status(500).json({ error: 'Failed to fetch incomplete games' });
             });
     });
@@ -129,13 +130,13 @@ export default function configureRoutes(app, connectionManager) {
         getDivisionId(leagueName, divisionName)
             .then(divisionId => res.status(200).json(divisionId))
             .catch(error => {
-                console.error('Error fetching divisionId:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_schedule_league_division_divisionId', message: 'Error fetching divisionId:', error });
                 res.status(500).json({ error: 'Failed to fetch divisionId' });
             });
     });
 
     // IV. Gamesheet Management 
-    app.get('/scoreboard/division/:divisionId/gamesheet/:gamesheetID/status', (req, res) => {
+    app.get('/scoreboard/division/:divisionId/gamesheet/:gamesheetID/livestatus', (req, res) => {
         const divisionName = req.params.divisionName;
         const gamesheetId = req.params.gamesheetId;
         const divisionId = getDivisionId(divisionName);
@@ -143,23 +144,23 @@ export default function configureRoutes(app, connectionManager) {
         getLiveStatus(divisionId, gamesheetId)
             .then(liveStatus => res.status(200).json(liveStatus))
             .catch(error => {
-                console.error('Error fetching live status:', error);
+                logger.error({ module: 'apiRoutes', function: 'app.get_scoreboard_division_gamesheet_livestatus', message: 'Error fetching live status:', error });
                 res.status(500).json({ error: 'Failed to fetch live status' });
             });
     });
 
-    app.post('/scoreboard/:scoreboardId/division/:divisionId/gamesheet/:gamesheetId', (req, res) => {
+    app.post('/scoreboard/:scoreboardId/division/:divisionId/gamesheet/:gamesheetId/live', (req, res) => {
         const scoreboardID = req.params.scoreboardId;
         const gamesheetID = req.body.gamesheetId; 
         const divisionID = req.body.divisionId;
 
         try {
             // Update the connectionManager or gameManager with the game details
-            connectionManager.updateScoreboardGameDetails(scoreboardID, gamesheetID, divisionID);
+            connectionManager.liveScoreboardGameDetails(scoreboardID, gamesheetID, divisionID);
 
             res.status(200).json({ message: 'Game details updated for scoreboard' });
         } catch (error) {
-            console.error('Error updating game details:', error);
+            logger.error({ module: 'apiRoutes', function: 'app.post_scoreboard_division_gamesheet_live', message: 'Error updating game details:', error });
             res.status(500).json({ error: 'Failed to update game details' });
         }
     });
@@ -172,7 +173,7 @@ export default function configureRoutes(app, connectionManager) {
             connectionManager.broadcastGameUpdate(scoreboardID);
             res.status(200).json({ message: 'Score update broadcasted' });
         } catch (error) {
-            console.error('Error updating score:', error);
+            logger.error({ module: 'apiRoutes', function: 'app.put_scoreboard_score', message: 'Error updating score:', error });
             res.status(500).json({ error: 'Failed to update score' });
         }
     });

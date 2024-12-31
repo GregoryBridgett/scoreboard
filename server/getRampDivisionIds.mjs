@@ -1,5 +1,6 @@
 import { handleError } from './handleError.mjs';
 import { fetchDocument } from './fetchRampData.mjs';
+import logger from './logger.mjs';
 
 /**
  * Retrieves the division ID from the Ringette Ontario website.
@@ -17,14 +18,14 @@ export async function getDivisionId(leagueText, divisionText) {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getDivisionId', message: 'Document not available.' });
     return null; // Or throw an error
   }
 
   const leagueListItem = Array.from(document.querySelectorAll('li')).find(li => li.textContent.includes(leagueText)
   );
   if (!leagueListItem) {
-    handleError(`List item containing "${leagueText}" not found`, new Error("League list item not found"));
+    logger.warn({ module: 'getRampDivisionIds', function: 'getDivisionId', message: `List item containing "${leagueText}" not found` });
     return null;
   }
 
@@ -32,14 +33,14 @@ export async function getDivisionId(leagueText, divisionText) {
   );
   if (!divisionLink) {
     handleError(`Link for division "${divisionText}" not found`, new Error("Division link not found"));
-    return null;
+    logger.warn({ module: 'getRampDivisionIds', function: 'getDivisionId', message: `Link for division "${divisionText}" not found` });
   }
 
   const href = divisionLink.href;
   const hrefNumber = href.match(/#div_(\d+)/)?.[1];
   if (!hrefNumber) {
     handleError(`Could not extract href number from "${href}"`, new Error("Invalid href format"));
-    return null;
+    logger.warn({ module: 'getRampDivisionIds', function: 'getDivisionId', message: `Could not extract href number from "${href}"` });
   }
   return hrefNumber;
 }
@@ -55,13 +56,13 @@ export async function getCurrentSeasonId() {
   /*const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getCurrentSeasonId', message: 'Document not available.' });
     return null; // Or throw an error
   }
   const seasonDropdown = document.querySelector('[name="ddlSeason"]');
 
   if (!seasonDropdown) {
-    console.error("Error: Element with name 'ddlSeason' not found on the page.");
+    logger.error({ module: 'getRampDivisionIds', function: 'getCurrentSeasonId', message: "Element with name 'ddlSeason' not found on the page." });
   }
   const selectedSeasonOption = seasonDropdown.querySelector('option[selected]');
   return selectedSeasonOption ? selectedSeasonOption.value : null;
@@ -78,7 +79,7 @@ export async function getTournaments() {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getTournaments', message: 'Document not available.' });
     return null; // Or throw an error
   }
   const tournaments = [];
@@ -96,12 +97,12 @@ export async function getTournaments() {
             url: link.href.replace(/^.*\/\/[^\/]+/, '') // Make URL relative to base URL
           });
         } else {
-          console.warn('Row without an <a> tag found:', row.outerHTML);
+          logger.warn({ module: 'getRampDivisionIds', function: 'getTournaments', message: 'Row without an <a> tag found', data: row.outerHTML });
         }
       }
     });
   } else {
-    handleError('Table with id "tblPlayers" not found', new Error('Table not found'));
+    logger.error({ module: 'getRampDivisionIds', function: 'getTournaments', message: 'Table with id "tblPlayers" not found' });
   }
   return tournaments;
 }
@@ -115,7 +116,7 @@ export async function getLeagues() {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getLeagues', message: 'Document not available.' });
     return null; // Or throw an error
   }
 
@@ -142,7 +143,7 @@ export async function getDivisionNames(leagueName) {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getDivisionNames', message: 'Document not available.' });
     return null; // Or throw an error
   }
   // Find the league element
@@ -151,7 +152,7 @@ export async function getDivisionNames(leagueName) {
   );
 
   if (!leagueElement) {
-    handleError(`League element for "${leagueName}" not found`, new Error("League element not found"));
+    logger.warn({ module: 'getRampDivisionIds', function: 'getDivisionNames', message: `League element for "${leagueName}" not found` });
     return [];
   }
 
@@ -175,14 +176,14 @@ export async function getTeamNames(leagueName, divisionName) {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getTeamNames', message: 'Document not available.' });
     return null; // Or throw an error
   }
   const divisionId = await getDivisionId(leagueName, divisionName);
   const divisionDiv = document.getElementById(`div_${divisionId}`);
 
   if (!divisionDiv) {
-    handleError(`Division div with ID "div_${divisionId}" not found`, new Error("Division div not found"));
+    logger.warn({ module: 'getRampDivisionIds', function: 'getTeamNames', message: `Division div with ID "div_${divisionId}" not found` });
     return [];
   }
 
@@ -191,7 +192,7 @@ export async function getTeamNames(leagueName, divisionName) {
   const teamRow = teamRows[1]; // Assuming team names are in the second row
 
   if (!teamRow) {
-    handleError(`Team row not found within division div with ID "div_${divisionId}"`, new Error("Team row not found"));
+    logger.warn({ module: 'getRampDivisionIds', function: 'getTeamNames', message: `Team row not found within division div with ID "div_${divisionId}"` });
     return [];
   }
 
@@ -214,13 +215,13 @@ export async function getTeamId(leagueName, divisionName, teamName) {
   const document = await fetchDocument();  // Directly use fetchDocument
 
   if (!document) {
-    console.error('Document not available.');
+    logger.error({ module: 'getRampDivisionIds', function: 'getTeamId', message: 'Document not available.' });
     return null; // Or throw an error
   }
 
   const divisionId = await getDivisionId(leagueName, divisionName);
   if (!divisionId) {
-    console.error("Division ID not found");
+    logger.error({ module: 'getRampDivisionIds', function: 'getTeamId', message: "Division ID not found" });
     return null;
   }
 
@@ -276,13 +277,13 @@ export function getIncompleteGames(gameData, teamName) {
 
     // Output incomplete games as a table
     if (incompleteGames.length > 0) {
-      console.log("Incomplete Games:");
+      logger.info({ module: 'getRampDivisionIds', function: 'getIncompleteGames', message: "Incomplete Games:" });
       incompleteGamesFormatted.forEach(game => {
         const gameID = game.gamesheetID ? String(game.gamesheetID).padEnd(7) : 'N/A'.padEnd(7);
         const date = game.date ? game.date.substring(0, 10) : 'N/A';
         const homeTeam = game.homeTeam ? game.homeTeam.padEnd(19) : 'N/A'.padEnd(19);
         const awayTeam = game.awayTeam ? game.awayTeam.padEnd(19) : 'N/A'.padEnd(19);
-        console.log(`${gameID} | ${date} | ${homeTeam} | ${awayTeam} |`);
+        logger.info({ module: 'getRampDivisionIds', function: 'getIncompleteGames', message: `${gameID} | ${date} | ${homeTeam} | ${awayTeam} |` });
       });
     } else {
       console.log("No incomplete games found.");
@@ -325,11 +326,11 @@ export async function fetchGameSheetList(divisionId) {
   const url = `https://ringetteontario.com/api/leaguegame/get/1648/${seasonId}/0/${divisionId}/0/0/0`;
   const fetch = await import('node-fetch').then(module => module.default);
 
-  console.log(`Fetching game table data from API: ${url}`);
+  logger.debug({ module: 'getRampDivisionIds', function: 'fetchGameSheetList', message: `Fetching game table data from API: ${url}` });
   try {
     const response = await fetch(`${url}`);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error fetching game table data: ${response.status}`);
     }
     return await response.json();
   } catch (error) {

@@ -1,4 +1,5 @@
 import { PlayerGoalInfo, GameData, PlayerPenaltyInfo } from './dataModel.mjs';
+import logger from './logger.mjs';
 
 /**
  * Extracts scoring play data from the provided HTML document.
@@ -178,13 +179,13 @@ export function getGameInfo(document) {
         gameData.homeTeamName = columns[3].textContent.trim();
         gameData.awayTeamName = columns[4].textContent.trim();
       } else {
-        console.warn('Unexpected number of columns in schedule table row.');
+        logger.warn({ module: 'processRampGameSheet', function: 'getGameInfo', message: 'Unexpected number of columns in schedule table row.' });
       }
     } else {
-      console.warn('No data rows found in schedule table.');
+      logger.warn({ module: 'processRampGameSheet', function: 'getGameInfo', message: 'No data rows found in schedule table.' });
     }
   } else {
-    console.warn('Schedule table not found.');
+    logger.warn({ module: 'processRampGameSheet', function: 'getGameInfo', message: 'Schedule table not found.' });
   }
   gameData.goals = [];
   gameData.penalties = [];

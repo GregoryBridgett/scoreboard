@@ -3,28 +3,28 @@ import { createServer } from "http";
 import apiRoutes from "./apiRoutes.mjs";
 import GameManager from "./gameManager.mjs";
 import ConnectionManager from "./connectionManager.mjs";
+import pino from 'pino';
 
 const startServer = async (port = 3000) => {
   const app = express();
   const httpServer = createServer(app); 
-  const connectionManager = new ConnectionManager(gameManager);
-  const gameManager = new GameManager(connectionManager)
-  
-  // Read LOG_LEVEL environment variable
-  // If logLevel is undefined, default to "info"
-  const logLevel = process.env.LOG_LEVEL || "info";
 
-  switch (logLevel) {
-    case "debug":
-      console.debug("Starting server in debug mode");
-      break;
-    case "error":
-      console.error("Starting server in error mode");
-      break;
-    default:
-      console.info("Starting server in info mode");
-      break;
-  } 
+  // Configure Pino logger
+  const logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    timestamp: pino.stdTimeFunctions.isoTime,
+    formatters: {
+      level (label) {
+        return { level: label }
+      }
+    }
+  });
+
+  // Initialize gameManager and connectionManager after logger is configured
+  const gameManager = new GameManager(logger);
+  const connectionManager = new ConnectionManager(gameManager, logger);
+
+  logger.info({ module: 'server', function: 'startServer' }, 'Starting server');
 
   // Serve static files from the 'public' directory
   app.use(express.static("public"));
@@ -33,10 +33,7 @@ const startServer = async (port = 3000) => {
   apiRoutes(app, gameManager, connectionManager);
 
   httpServer.listen(port, () => {
-    if (logLevel === 'debug') {
-      console.debug(`Server listening on port ${port}`);
-    }
-    console.log(`Server started successfully on port ${port}`);
+    logger.info({ module: 'server', function: 'startServer' }, `Server listening on port ${port}`);
   });
 
   return httpServer; 

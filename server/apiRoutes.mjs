@@ -7,8 +7,6 @@ import { getDivisionNames, getIncompleteGames, getLeagues, getTeamNames, getDivi
 import { logger } from '../server/server.mjs'; 
 import { fetchDocument } from '../server/fetchRampData.mjs';
 
-function handleError(message, error) { logger.error({ module: 'apiRoutes', function: 'handleError', message, error }); } // Basic error handling
-
 export default function configureRoutes(app, connectionManager) {
 
     // I. Client and UI Registration (Management)

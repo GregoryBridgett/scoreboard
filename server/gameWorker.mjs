@@ -3,7 +3,7 @@ import { fetchDocument, getLiveStatus } from './fetchRampData.mjs';
 import { getGameInfo, extractPenaltyData, extractScoringPlaysData, getScoreData } from './processRampGameSheet.mjs';
 import * as dataModel from './dataModel.mjs';
 import { isEqual } from 'lodash-es';
-import logger from './logger.mjs';
+import { logger } from './server.mjs';
 /**
  * This worker thread monitors a Ramp online gamesheet and reports changes in game data to the main thread. 
  * 
@@ -28,6 +28,7 @@ const updateInterval = workerData.updateInterval || 15000; // Default to 15 seco
 let isUpdating = false; 
 
 async function startMonitoring() {
+  logger.info({ module: 'gameWorker', function: 'startMonitoring' }, 'Starting game monitoring for gamesheetId: ' + gamesheetId);
   let previousGameData = new dataModel.GameData();
 
   // First wait until the game goes live
@@ -35,14 +36,14 @@ async function startMonitoring() {
     try {
       const isLive = await getLiveStatus(gamesheetUrl);
       if (isLive) {
-        logger.info({ module: 'gameWorker', function: 'startMonitoring' }, 'Gamesheet is live. Starting monitoring.');
+        logger.info({ module: 'gameWorker', function: 'startMonitoring', gamesheetId }, 'Gamesheet is live. Starting monitoring.');
         break; 
       } else {
-        logger.info({ module: 'gameWorker', function: 'startMonitoring' }, 'Gamesheet is not live. Waiting...');
+        logger.debug({ module: 'gameWorker', function: 'startMonitoring', gamesheetId }, 'Gamesheet is not live. Waiting...');
         await new Promise(resolve => setTimeout(resolve, updateInterval)); 
       }
     } catch (error) {
-      logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error checking live status');
+      logger.error({ module: 'gameWorker', function: 'startMonitoring', gamesheetId, error }, 'Error checking live status');
       await new Promise(resolve => setTimeout(resolve, updateInterval));
     }
   }
@@ -52,7 +53,7 @@ async function startMonitoring() {
     let document = await fetchDocument(gamesheetUrl);
     
     if (!document) {
-      logger.error({ module: 'gameWorker', function: 'startMonitoring' }, "Failed to fetch or parse the document.");
+      logger.error({ module: 'gameWorker', function: 'startMonitoring', gamesheetId }, "Failed to fetch or parse the document.");
       return;
     }
 
@@ -65,11 +66,12 @@ async function startMonitoring() {
       penalties: []
     });
 
-    parentPort.postMessage({ type: 'gameDataUpdate', data: previousGameData });
+    parentPort.postMessage({ type: 'gameDataUpdate', gameId: gamesheetId, data: previousGameData });
+    logger.debug({ module: 'gameWorker', function: 'startMonitoring', gamesheetId }, 'Initial game data sent to parent thread.');
     document = null;
 
   } catch (error) {
-    logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error during initial scraping');
+    logger.error({ module: 'gameWorker', function: 'startMonitoring', gamesheetId, error }, 'Error during initial scraping');
   }
 
   // Then perform periodic web scraping
@@ -107,6 +109,7 @@ async function startMonitoring() {
             gameId: gamesheetId,
             data: changedData
           });
+          logger.debug({ module: 'gameWorker', function: 'startMonitoring', gamesheetId, changedData }, 'Game data updates sent to parent thread.');
 
           previousGameData.goals = [...newGoals];
           previousGameData.penalties = [...newPenalties];
@@ -115,7 +118,7 @@ async function startMonitoring() {
         }
 
       } catch (error) {
-        logger.error({ module: 'gameWorker', function: 'startMonitoring', error }, 'Error during periodic update');
+        logger.error({ module: 'gameWorker', function: 'startMonitoring', gamesheetId, error }, 'Error during periodic update');
       } finally {
         document = null;
         isUpdating = false; 
@@ -128,5 +131,5 @@ async function startMonitoring() {
 try {
   startMonitoring();
 } catch (error) {
-  logger.error({ module: 'gameWorker', error }, 'Worker thread error');
+  logger.error({ module: 'gameWorker', gamesheetId, error }, 'Worker thread error');
 }

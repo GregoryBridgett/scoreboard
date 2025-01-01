@@ -5,20 +5,23 @@ import GameManager from "./gameManager.mjs";
 import ConnectionManager from "./connectionManager.mjs";
 import pino from 'pino';
 
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  timestamp: pino.stdTimeFunctions.isoTime,
+  formatters: {
+    level (label) {
+      return { level: label }
+    }
+  }
+});
+
+export { logger };
+
 const startServer = async (port = 3000) => {
   const app = express();
   const httpServer = createServer(app); 
 
   // Configure Pino logger
-  const logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
-    timestamp: pino.stdTimeFunctions.isoTime,
-    formatters: {
-      level (label) {
-        return { level: label }
-      }
-    }
-  });
 
   // Initialize gameManager and connectionManager after logger is configured
   const gameManager = new GameManager(logger);
@@ -39,5 +42,5 @@ const startServer = async (port = 3000) => {
   return httpServer; 
 }
 
-export default startServer;
+export { startServer };
 startServer(3000); 

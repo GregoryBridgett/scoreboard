@@ -17,7 +17,7 @@
 
 // gameManager.mjs
 import { Worker } from 'worker_threads';
-import logger from './logger.mjs';
+import { logger } from './server.mjs';
 
 const workerThreads = {};
 const gameTimers = new Map();

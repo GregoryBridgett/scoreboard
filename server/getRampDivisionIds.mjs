@@ -1,6 +1,6 @@
 import { handleError } from './handleError.mjs';
 import { fetchDocument } from './fetchRampData.mjs';
-import logger from './logger.mjs';
+import { logger } from './server.mjs';
 
 /**
  * Retrieves the division ID from the Ringette Ontario website.

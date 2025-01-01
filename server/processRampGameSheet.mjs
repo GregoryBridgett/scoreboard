@@ -1,5 +1,5 @@
 import { PlayerGoalInfo, GameData, PlayerPenaltyInfo } from './dataModel.mjs';
-import logger from './logger.mjs';
+import { logger } from './server.mjs';
 
 /**
  * Extracts scoring play data from the provided HTML document.

@@ -4,8 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scoreboard UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-
+<body class="bg-gray-100">    
+    <div id="scoreboard" class="bg-white p-4 rounded shadow-md mx-auto my-4 max-w-md">
+        <div class="live-indicator absolute top-2 left-2">
+            <div class="bg-green-500 rounded-full w-4 h-4"></div> 
+        </div>
+        <div class="flex justify-between items-center">
+            <div class="team-1">
+                <span class="team-name text-lg font-bold">Team 1</span>
+                <span class="score text-2xl ml-2">0</span>
+            </div>
+            <div class="team-2">
+                <span class="team-name text-lg font-bold">Team 2</span>
+                <span class="score text-2xl ml-2">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <button id="toggle-game-selection" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-auto my-4 block">
+        Toggle Game Selection
+    </button>
+    
+    <div id="game-selection-menu" class="hidden bg-white p-6 rounded shadow-md mx-auto my-4 max-w-lg">
+        <button id="leagues-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2">Regular Season</button> 
+        <button id="tournaments-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Tournaments</button> 
+        <h2 class="text-xl font-bold mb-4">Select League</h2> 
+        <div id="selection-list" class="vertical-scroll overflow-y-auto max-h-96">
+            <!-- Dynamically populated list items will go here -->
+        </div>  
+    </div>
+    
+    <script src="./ui.js"></script>
 </body>
 </html>

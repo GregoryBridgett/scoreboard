@@ -1,0 +1,58 @@
+
+/* Basic Page Layout */
+body {
+  font-family: 'Arial', sans-serif; /* Choose a specific font */
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+}
+
+/* Scoreboard Styles */
+#scoreboard-container { /* More specific container */
+  background-color: #f4f4f4; /* Light gray background */
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Two columns for team info */
+  grid-gap: 20px;
+  align-items: center;
+
+  @media (max-width: 600px) { /* Example media query */
+    grid-template-columns: 1fr; /* Stack team info on mobile */
+  }
+}
+
+.team-info { /* More specific selector */
+  text-align: center;
+}
+
+.team-name {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.score {
+  font-size: 2em;
+  font-weight: bold;
+}
+
+/* Button Styles */
+.primary-button { /* More specific button class */
+  background-color: #007bff; /* Blue */
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease; /* Smooth transition */
+}
+
+.primary-button:hover {
+  background-color: #0056b3; /* Darker blue on hover */
+}

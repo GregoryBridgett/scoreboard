@@ -1,30 +1,37 @@
 # To learn more about how to use Nix to configure your environment
 # see: https://developers.google.com/idx/guides/customize-idx-env
-{ pkgs, ... }: {
-  # Which nixpkgs channel to use.
-  channel = "stable-23.11"; # or "unstable"
-  # Use https://search.nixos.org/packages to find packages
-  packages = [
-    pkgs.nodejs_20
-    pkgs.python3
-  ];
-  # Sets environment variables in the workspace
-  env = {};
-  idx = {
-    # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
-    extensions = [
-      # "vscodevim.vim"
-      "dbaeumer.vscode-eslint"
-      "ms-vscode.js-debug"
+{ pkgs ? import <nixpkgs> {} , ... }: {
+  # devShell = pkgs.mkShell {
+    # Which nixpkgs channel to use.
+    channel = "stable-23.11"; # or "unstable"
+    # Use https://search.nixos.org/packages to find packages
+    packages = [
+      pkgs.nodejs_20
+      pkgs.python3
     ];
-    # Enable previews and customize configuration
-    previews = {
-      enable = true;
+    # Sets environment variables in the workspace
+    env = {
+      PORT = "3000";
+    };
+    # This is a special attribute that configures IDX.
+    # To learn more, see: https://developers.google.com/idx/guides/customize-idx-env
+    idx = {
+      # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
+      extensions = [
+        # "vscodevim.vim"
+        "dbaeumer.vscode-eslint"
+        "ms-vscode.js-debug"
+      ];
+      # Enable previews and customize configuration
       previews = {
-        web = {
-          command = ["python3" "-m" "http.server" "$PORT" "--bind" "0.0.0.0"];
-          manager = "web";
-        };
+        enable = true;
+        previews = {
+          web = {
+           command = ["node" "server/server.mjs" "--port" "$PORT" "--bind" "0.0.0.0"];
+          # command = ["python3" "-m" "http.server" "$PORT" "--bind" "0.0.0.0"];
+            manager = "web";
+          };
+
       };
     };
     # Workspace lifecycle hooks
@@ -39,7 +46,7 @@
       # Runs when the workspace is (re)started
       onStart = {
         # Example: start a background task to watch and re-build backend code
-        # watch-backend = "npm run watch-backend";
+        # watch-backend = "npm start";
       };
     };
   };
